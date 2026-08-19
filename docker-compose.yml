@@ -1,0 +1,89 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: creditflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-creditflow}
+      POSTGRES_USER: ${DB_USERNAME:-creditflow}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-creditflow}
+      TZ: ${TZ:-Africa/Dakar}
+    volumes:
+      - creditflow-db-data:/var/lib/postgresql/data
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-creditflow} -d ${DB_NAME:-creditflow}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: creditflow-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-creditflow}
+      DB_USERNAME: ${DB_USERNAME:-creditflow}
+      DB_PASSWORD: ${DB_PASSWORD:-creditflow}
+      JWT_SECRET: ${JWT_SECRET:-creditflow-super-secret-key-change-me-in-production-0123456789}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-720}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      ADMIN_FULL_NAME: ${ADMIN_FULL_NAME:-Administrateur Boutique}
+      SHOP_NAME: ${SHOP_NAME:-CreditFlow Boutique}
+      DEMO_SEED: ${DEMO_SEED:-true}
+      UPLOAD_DIR: /app/data/uploads
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://localhost:3010,http://localhost:5173}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-demo}
+      TZ: ${TZ:-Africa/Dakar}
+    volumes:
+      - creditflow-uploads:/app/data/uploads
+    ports:
+      - '${BACKEND_PORT:-8080}:8080'
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: creditflow-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      TZ: ${TZ:-Africa/Dakar}
+    volumes:
+      # Deposez fullchain.pem et privkey.pem ici pour activer automatiquement HTTPS.
+      - ./certs:/etc/nginx/certs:ro
+    ports:
+      - '${FRONTEND_PORT:-3010}:80'
+      - '${FRONTEND_HTTPS_PORT:-3443}:443'
+
+  # Sauvegarde automatique : sans elle, une panne de disque efface toutes
+  # les creances de la boutique. Les fichiers atterrissent dans ./backups.
+  backup:
+    image: postgres:16-alpine
+    container_name: creditflow-backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGDATABASE: ${DB_NAME:-creditflow}
+      PGUSER: ${DB_USERNAME:-creditflow}
+      PGPASSWORD: ${DB_PASSWORD:-creditflow}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      TZ: ${TZ:-Africa/Dakar}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup-loop.sh:/usr/local/bin/backup-loop.sh:ro
+    entrypoint: ['/bin/sh', '/usr/local/bin/backup-loop.sh']
+
+volumes:
+  creditflow-db-data:
+  creditflow-uploads:

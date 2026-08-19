@@ -1,0 +1,27 @@
+# Backend
+backend/target/
+backend/data/
+*.class
+*.log
+hs_err_pid*.log
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Outils
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Environnement
+.env
+.env.production
+
+# Sauvegardes et certificats : ne doivent jamais partir dans un depot
+backups/*
+!backups/.gitkeep
+certs/*
+!certs/.gitkeep

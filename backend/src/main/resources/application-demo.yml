@@ -1,0 +1,18 @@
+# =====================================================================
+# Profil DEMONSTRATION
+# Permet de lancer l'application immediatement, avec un jeu de donnees.
+# A ne jamais utiliser avec les donnees reelles d'une boutique.
+# =====================================================================
+app:
+  security:
+    # Les secrets de livraison sont tolérés : l'application se contente d'avertir.
+    strict: false
+  demo:
+    seed: ${DEMO_SEED:true}
+  admin:
+    # Pas de changement force : la demonstration doit rester fluide.
+    force-password-change: ${ADMIN_FORCE_PASSWORD_CHANGE:false}
+
+logging:
+  level:
+    com.creditflow: INFO

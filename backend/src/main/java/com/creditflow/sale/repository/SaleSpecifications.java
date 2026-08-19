@@ -1,0 +1,45 @@
+package com.creditflow.sale.repository;
+
+import com.creditflow.common.repository.Specs;
+import com.creditflow.sale.domain.CreditSale;
+import com.creditflow.sale.domain.SaleStatus;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.util.StringUtils;
+
+public final class SaleSpecifications {
+
+    private SaleSpecifications() {
+    }
+
+    /** Recherche sur la reference du contrat, le client, son telephone et le produit. */
+    public static Specification<CreditSale> matches(String search) {
+        if (!StringUtils.hasText(search)) {
+            return null;
+        }
+        return (root, query, cb) -> {
+            var customer = root.get("customer");
+            var product = root.get("product");
+            return cb.or(
+                    Specs.likeIgnoreCase(cb, root.get("reference"), search),
+                    Specs.likeIgnoreCase(cb,
+                            cb.concat(cb.concat(customer.get("firstName"), " "), customer.get("lastName")),
+                            search),
+                    cb.like(customer.get("phone"), "%" + search.trim() + "%"),
+                    Specs.likeIgnoreCase(cb, product.get("name"), search));
+        };
+    }
+
+    public static Specification<CreditSale> hasStatus(SaleStatus status) {
+        if (status == null) {
+            return null;
+        }
+        return (root, query, cb) -> cb.equal(root.get("status"), status);
+    }
+
+    public static Specification<CreditSale> forCustomer(Long customerId) {
+        if (customerId == null) {
+            return null;
+        }
+        return (root, query, cb) -> cb.equal(root.get("customer").get("id"), customerId);
+    }
+}
