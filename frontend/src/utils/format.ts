@@ -83,6 +83,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   DELETE: 'Suppression du contrat',
   PAYMENT_DELETE: "Annulation d'un versement",
   PRICE_UPDATE: 'Modification de prix',
+  REMINDER_SENT: 'Relance envoyée',
+  REMINDER_FAILED: 'Relance en échec',
 };
 
 export function initials(fullName: string): string {

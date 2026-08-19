@@ -227,7 +227,11 @@ export default function CustomerDetailPage() {
           <AuditHistoryCard
             entityType="CUSTOMER"
             entityId={customerId}
-            actionLabels={{ DELETE: 'Suppression du client' }}
+            actionLabels={{
+              DELETE: 'Suppression du client',
+              REMINDER_SENT: 'Relance envoyée',
+              REMINDER_FAILED: 'Relance en échec',
+            }}
           />
         </Grid>
       </Grid>

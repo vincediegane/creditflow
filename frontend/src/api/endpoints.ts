@@ -3,6 +3,7 @@ import type {
   AuditEntityType,
   AuditLogEntry,
   AuthResponse,
+  BulkReminderResult,
   ChangePasswordPayload,
   CreateUserPayload,
   Customer,
@@ -201,6 +202,10 @@ export const dashboardApi = {
 export const remindersApi = {
   generate: (payload: { saleId?: number; customerId?: number; template?: string }) =>
     api.post<Reminder>('/reminders/generate', payload).then((r) => r.data),
+  send: (payload: { saleId?: number; customerId?: number; template?: string }) =>
+    api.post<Reminder>('/reminders/send', payload).then((r) => r.data),
+  sendAll: (template?: string) =>
+    api.post<BulkReminderResult>('/reminders/send-all', { template }).then((r) => r.data),
   lateCustomers: () => api.get<LateCustomer[]>('/reminders/late-customers').then((r) => r.data),
   settings: () => api.get<ReminderSettings>('/reminders/settings').then((r) => r.data),
 };

@@ -327,6 +327,13 @@ export interface ReminderSettings {
   currency: string;
 }
 
+export interface BulkReminderResult {
+  total: number;
+  sent: number;
+  failed: number;
+  results: Reminder[];
+}
+
 export type ReportType = 'DAILY_PAYMENTS' | 'MONTHLY_PAYMENTS' | 'LATE_CUSTOMERS' | 'OUTSTANDING';
 
 export type ReportColumnType = 'TEXT' | 'NUMBER' | 'MONEY' | 'DATE';
