@@ -138,6 +138,8 @@ export const salesApi = {
   preview: (payload: {
     totalPrice: number;
     downPayment: number;
+    interestRate?: number;
+    interestFee?: number;
     installmentCount: number;
     startDate: string;
   }) => api.post<SalePreview>('/sales/preview', payload).then((r) => r.data),

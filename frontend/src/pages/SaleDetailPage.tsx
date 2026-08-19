@@ -147,6 +147,14 @@ export default function SaleDetailPage() {
                 <Line label="Téléphone" value={sale.customerPhone} />
                 <Line label="Produit" value={sale.productName} />
                 <Line label="Prix total" value={formatMoney(sale.totalPrice)} />
+                <Line
+                  label="Intérêt / frais"
+                  value={
+                    sale.interestRate != null
+                      ? `${formatMoney(sale.interestAmount)} (${sale.interestRate}%)`
+                      : formatMoney(sale.interestAmount)
+                  }
+                />
                 <Line label="Acompte" value={formatMoney(sale.downPayment)} />
                 <Line label="Montant financé" value={formatMoney(sale.financedAmount)} />
                 <Line label="Mensualité" value={formatMoney(sale.monthlyAmount)} />
