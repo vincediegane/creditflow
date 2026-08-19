@@ -1,5 +1,6 @@
 package com.creditflow.payment.domain;
 
+import com.creditflow.common.security.CurrentUser;
 import com.creditflow.sale.domain.CreditSale;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -59,10 +60,14 @@ public class Payment {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "created_by", length = 80)
+    private String createdBy;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+        createdBy = CurrentUser.username();
     }
 }
