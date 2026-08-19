@@ -28,6 +28,7 @@ import ReceiptIcon from '@mui/icons-material/ReceiptLong';
 import { errorMessage } from '../api/client';
 import { paymentsApi, salesApi } from '../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
+import AuditHistoryCard from '../components/AuditHistoryCard';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
@@ -235,6 +236,7 @@ export default function SaleDetailPage() {
                       <TableCell>Référence</TableCell>
                       <TableCell>Observations</TableCell>
                       <TableCell align="right">Montant</TableCell>
+                      <TableCell>Enregistré par</TableCell>
                       <TableCell align="right" />
                     </TableRow>
                   </TableHead>
@@ -246,6 +248,7 @@ export default function SaleDetailPage() {
                         <TableCell>{payment.reference ?? '—'}</TableCell>
                         <TableCell>{payment.notes ?? '—'}</TableCell>
                         <TableCell align="right">{formatMoney(payment.amount)}</TableCell>
+                        <TableCell>{payment.createdBy ?? '—'}</TableCell>
                         <TableCell align="right">
                           <Tooltip title="Imprimer le reçu du client">
                             <IconButton
@@ -270,13 +273,15 @@ export default function SaleDetailPage() {
                       </TableRow>
                     ))}
                     {!payments.length && (
-                      <EmptyRow colSpan={6} message="Aucun versement enregistré" />
+                      <EmptyRow colSpan={7} message="Aucun versement enregistré" />
                     )}
                   </TableBody>
                 </Table>
               </Box>
             </CardContent>
           </Card>
+
+          <AuditHistoryCard entityType="CREDIT_SALE" entityId={sale.id} />
         </Grid>
       </Grid>
 

@@ -1,5 +1,6 @@
 package com.creditflow.sale.service;
 
+import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.dto.PageResponse;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
@@ -49,6 +50,7 @@ public class CreditSaleService {
     private final InstallmentScheduleGenerator scheduleGenerator;
     private final SaleMapper saleMapper;
     private final PaymentMapper paymentMapper;
+    private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public PageResponse<SaleResponse> search(String search, SaleStatus status, Long customerId, Pageable pageable) {
@@ -167,6 +169,7 @@ public class CreditSaleService {
             throw new BusinessRuleException("Un contrat solde ne peut pas etre annule");
         }
         sale.setStatus(SaleStatus.CANCELLED);
+        auditLogService.record("CREDIT_SALE", id, sale.getReference(), "CANCEL", null);
         return saleMapper.toResponse(saleRepository.save(sale), sale.getInstallments(), LocalDate.now());
     }
 
@@ -177,6 +180,7 @@ public class CreditSaleService {
             throw new BusinessRuleException(
                     "Ce contrat comporte des paiements : annulez-le au lieu de le supprimer");
         }
+        auditLogService.record("CREDIT_SALE", id, sale.getReference(), "DELETE", null);
         saleRepository.delete(sale);
         log.info("Contrat supprime: {}", id);
     }

@@ -57,7 +57,9 @@ public class SaleMapper {
                 next.map(Installment::getRemaining).orElse(null),
                 paidCount,
                 sale.getNotes(),
-                sale.getCreatedAt());
+                sale.getCreatedAt(),
+                sale.getCreatedBy(),
+                sale.getUpdatedBy());
     }
 
     public InstallmentResponse toResponse(Installment installment, LocalDate today) {

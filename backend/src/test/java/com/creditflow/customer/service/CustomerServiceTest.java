@@ -1,5 +1,6 @@
 package com.creditflow.customer.service;
 
+import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.storage.FileStorageService;
@@ -37,6 +38,9 @@ class CustomerServiceTest {
 
     @Mock
     private FileStorageService fileStorageService;
+
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private CustomerService customerService;
@@ -100,5 +104,18 @@ class CustomerServiceTest {
     void quickSearchIgnoresBlankQuery() {
         assertThat(customerService.quickSearch("  ", 10)).isEmpty();
         verify(customerRepository, never()).quickSearch(any(), any());
+    }
+
+    @Test
+    @DisplayName("supprime un client et journalise l'action")
+    void deletesCustomerAndRecordsAuditEntry() {
+        Customer customer = Customer.builder()
+                .id(1L).firstName("Amadou").lastName("Diallo").phone("770000001").active(true).build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+
+        customerService.delete(1L);
+
+        verify(auditLogService).record("CUSTOMER", 1L, "Amadou Diallo", "DELETE", null);
+        verify(customerRepository).delete(customer);
     }
 }

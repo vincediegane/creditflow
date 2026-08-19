@@ -42,7 +42,7 @@ class PaymentControllerSecurityTest extends AbstractWebMvcSecurityTest {
     private PaymentResponse response() {
         return new PaymentResponse(1L, 1L, "V-0001", 1L, "Amadou Diallo", "770000001", "Telephone",
                 BigDecimal.valueOf(15000), LocalDate.now(), PaymentMethod.CASH, null, null,
-                BigDecimal.valueOf(65000), LocalDateTime.now());
+                BigDecimal.valueOf(65000), LocalDateTime.now(), null);
     }
 
     @Test

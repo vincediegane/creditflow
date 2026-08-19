@@ -31,6 +31,8 @@ public record SaleResponse(
         BigDecimal nextDueAmount,
         int paidInstallments,
         String notes,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String createdBy,
+        String updatedBy
 ) {
 }

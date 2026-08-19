@@ -1,5 +1,7 @@
 import { api } from './client';
 import type {
+  AuditEntityType,
+  AuditLogEntry,
   AuthResponse,
   ChangePasswordPayload,
   CreateUserPayload,
@@ -234,4 +236,13 @@ export const usersApi = {
 export const searchApi = {
   global: (q: string) =>
     api.get<GlobalSearchResult>('/search', { params: { q } }).then((r) => r.data),
+};
+
+/* --------------------------- Journal d'audit -------------------------- */
+
+export const auditLogApi = {
+  list: (entityType: AuditEntityType, entityId: number) =>
+    api
+      .get<AuditLogEntry[]>('/audit-log', { params: { entityType, entityId } })
+      .then((r) => r.data),
 };

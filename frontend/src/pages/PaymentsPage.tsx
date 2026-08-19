@@ -177,6 +177,7 @@ export default function PaymentsPage() {
                 <TableCell>Référence</TableCell>
                 <TableCell align="right">Montant</TableCell>
                 <TableCell align="right">Reste contrat</TableCell>
+                <TableCell>Enregistré par</TableCell>
                 <TableCell align="right" />
               </TableRow>
             </TableHead>
@@ -193,6 +194,7 @@ export default function PaymentsPage() {
                     {formatMoney(payment.amount)}
                   </TableCell>
                   <TableCell align="right">{formatMoney(payment.saleRemainingAmount)}</TableCell>
+                  <TableCell>{payment.createdBy ?? '—'}</TableCell>
                   <TableCell align="right">
                     <Tooltip title="Imprimer le reçu du client">
                       <IconButton
@@ -213,7 +215,7 @@ export default function PaymentsPage() {
                 </TableRow>
               ))}
               {!rows.length && !query.isLoading && (
-                <EmptyRow colSpan={9} message="Aucun paiement trouvé" />
+                <EmptyRow colSpan={10} message="Aucun paiement trouvé" />
               )}
             </TableBody>
           </Table>

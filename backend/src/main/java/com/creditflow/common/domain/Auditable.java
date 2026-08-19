@@ -1,5 +1,6 @@
 package com.creditflow.common.domain;
 
+import com.creditflow.common.security.CurrentUser;
 import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.PrePersist;
@@ -23,6 +24,12 @@ public abstract class Auditable {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "created_by", length = 80)
+    private String createdBy;
+
+    @Column(name = "updated_by", length = 80)
+    private String updatedBy;
+
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
@@ -30,10 +37,13 @@ public abstract class Auditable {
             createdAt = now;
         }
         updatedAt = now;
+        createdBy = CurrentUser.username();
+        updatedBy = createdBy;
     }
 
     @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
+        updatedBy = CurrentUser.username();
     }
 }

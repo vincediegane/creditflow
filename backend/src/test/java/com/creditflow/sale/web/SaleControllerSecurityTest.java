@@ -52,7 +52,8 @@ class SaleControllerSecurityTest extends AbstractWebMvcSecurityTest {
         return new SaleResponse(1L, "V-0001", 1L, "Amadou Diallo", "770000001", 1L, "Telephone",
                 BigDecimal.valueOf(100000), BigDecimal.valueOf(20000), BigDecimal.valueOf(80000), 6,
                 BigDecimal.valueOf(13334), BigDecimal.ZERO, BigDecimal.valueOf(80000), LocalDate.now(),
-                LocalDate.now().plusMonths(6), SaleStatus.ACTIVE, false, 0, 0, null, null, 0, null, null);
+                LocalDate.now().plusMonths(6), SaleStatus.ACTIVE, false, 0, 0, null, null, 0, null, null,
+                null, null);
     }
 
     @Test

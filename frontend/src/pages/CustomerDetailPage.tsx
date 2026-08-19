@@ -24,6 +24,7 @@ import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 
 import { errorMessage } from '../api/client';
 import { customersApi } from '../api/endpoints';
+import AuditHistoryCard from '../components/AuditHistoryCard';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
 import ReminderDialog from '../components/ReminderDialog';
@@ -222,6 +223,12 @@ export default function CustomerDetailPage() {
               </Box>
             </CardContent>
           </Card>
+
+          <AuditHistoryCard
+            entityType="CUSTOMER"
+            entityId={customerId}
+            actionLabels={{ DELETE: 'Suppression du client' }}
+          />
         </Grid>
       </Grid>
 
