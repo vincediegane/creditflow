@@ -150,6 +150,7 @@ export default function InstallmentsPage() {
                 <TableCell>Date prévue</TableCell>
                 <TableCell align="right">Montant</TableCell>
                 <TableCell align="right">Reste</TableCell>
+                <TableCell align="right">Pénalité</TableCell>
                 <TableCell>Statut</TableCell>
                 <TableCell align="right">Retard</TableCell>
                 <TableCell align="right">Actions</TableCell>
@@ -171,6 +172,7 @@ export default function InstallmentsPage() {
                   <TableCell>{formatDate(installment.dueDate)}</TableCell>
                   <TableCell align="right">{formatMoney(installment.amount)}</TableCell>
                   <TableCell align="right">{formatMoney(installment.remaining)}</TableCell>
+                  <TableCell align="right">{formatMoney(installment.penaltyAmount)}</TableCell>
                   <TableCell>
                     <StatusChip status={installment.displayStatus} kind="installment" />
                   </TableCell>
@@ -195,7 +197,7 @@ export default function InstallmentsPage() {
                 </TableRow>
               ))}
               {!rows.length && !query.isLoading && (
-                <EmptyRow colSpan={10} message="Aucune échéance trouvée" />
+                <EmptyRow colSpan={11} message="Aucune échéance trouvée" />
               )}
             </TableBody>
           </Table>

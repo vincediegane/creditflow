@@ -174,6 +174,7 @@ export interface Sale {
   createdAt: string;
   createdBy?: string;
   updatedBy?: string;
+  penaltyAmount: number;
 }
 
 export interface CreateSalePayload {
@@ -214,6 +215,7 @@ export interface Installment {
   late: boolean;
   daysLate: number;
   paidAt?: string;
+  penaltyAmount: number;
 }
 
 export type PaymentMethod = 'CASH' | 'MOBILE_MONEY' | 'BANK_TRANSFER' | 'CHECK' | 'CARD';
@@ -274,6 +276,7 @@ export interface LateCustomer {
   primarySaleId: number;
   primarySaleReference: string;
   monthlyAmount: number;
+  penaltyAmount: number;
 }
 
 export interface DashboardMetrics {
@@ -351,4 +354,25 @@ export interface AuditLogEntry {
   details?: string;
   actor?: string;
   createdAt: string;
+}
+
+export type PenaltyRateType = 'FIXED' | 'PERCENT';
+export type PenaltyPeriod = 'DAY' | 'WEEK';
+
+export interface PenaltySettings {
+  enabled: boolean;
+  rateType: PenaltyRateType;
+  rate: number;
+  period: PenaltyPeriod;
+  capPercent?: number;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface PenaltySettingsPayload {
+  enabled: boolean;
+  rateType: PenaltyRateType;
+  rate: number;
+  period: PenaltyPeriod;
+  capPercent?: number;
 }

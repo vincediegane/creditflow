@@ -18,6 +18,8 @@ import type {
   Payment,
   PaymentMethod,
   PaymentPayload,
+  PenaltySettings,
+  PenaltySettingsPayload,
   Product,
   ProductPayload,
   ProductStatus,
@@ -245,4 +247,12 @@ export const auditLogApi = {
     api
       .get<AuditLogEntry[]>('/audit-log', { params: { entityType, entityId } })
       .then((r) => r.data),
+};
+
+/* ------------------------- Pénalités de retard ------------------------- */
+
+export const penaltySettingsApi = {
+  get: () => api.get<PenaltySettings>('/penalty-settings').then((r) => r.data),
+  update: (payload: PenaltySettingsPayload) =>
+    api.put<PenaltySettings>('/penalty-settings', payload).then((r) => r.data),
 };
