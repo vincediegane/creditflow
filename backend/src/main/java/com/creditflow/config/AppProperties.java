@@ -17,6 +17,7 @@ public class AppProperties {
     private Admin admin = new Admin();
     private Shop shop = new Shop();
     private Reminder reminder = new Reminder();
+    private Notification notification = new Notification();
     private Demo demo = new Demo();
 
     @Getter
@@ -77,6 +78,25 @@ public class AppProperties {
         private String defaultTemplate = "";
         private int windowStartDay = 1;
         private int windowEndDay = 10;
+    }
+
+    @Getter
+    @Setter
+    public static class Notification {
+        private String channel = "manual";
+        private String defaultCountryCode = "+221";
+        private Whatsapp whatsapp = new Whatsapp();
+    }
+
+    @Getter
+    @Setter
+    public static class Whatsapp {
+        private String phoneNumberId;
+        private String accessToken;
+        private String apiBaseUrl = "https://graph.facebook.com";
+        private String apiVersion = "v20.0";
+        private String templateName = "relance_creditflow";
+        private String templateLanguageCode = "fr";
     }
 
     @Getter
