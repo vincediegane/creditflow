@@ -2,8 +2,11 @@ package com.creditflow.notification.service;
 
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.service.CustomerService;
+import com.creditflow.notification.dto.BulkReminderResponse;
+import com.creditflow.notification.dto.LateCustomerResponse;
 import com.creditflow.notification.dto.ReminderRequest;
 import com.creditflow.notification.dto.ReminderResponse;
 import com.creditflow.sale.domain.CreditSale;
@@ -11,15 +14,18 @@ import com.creditflow.sale.domain.Installment;
 import com.creditflow.sale.repository.CreditSaleRepository;
 import com.creditflow.sale.repository.InstallmentRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReminderService {
@@ -29,19 +35,90 @@ public class ReminderService {
     private final CustomerService customerService;
     private final ReminderMessageBuilder messageBuilder;
     private final NotificationChannel notificationChannel;
+    private final LateCustomerService lateCustomerService;
+    private final AuditLogService auditLogService;
+
+    private record ReminderPreview(Customer customer, BigDecimal amount, String message) {
+    }
 
     @Transactional(readOnly = true)
     public ReminderResponse generate(ReminderRequest request) {
-        if (request.saleId() != null) {
-            return generateForSale(request.saleId(), request.template());
+        ReminderPreview preview = prepare(request.saleId(), request.customerId(), request.template());
+        return new ReminderResponse(
+                preview.customer().getId(),
+                preview.customer().getFullName(),
+                preview.customer().getPhone(),
+                preview.amount(),
+                preview.message(),
+                notificationChannel.name(),
+                false);
+    }
+
+    @Transactional
+    public ReminderResponse send(ReminderRequest request) {
+        requireAutomaticChannel();
+        ReminderPreview preview = prepare(request.saleId(), request.customerId(), request.template());
+        return doSend(preview.customer(), preview.amount(), preview.message());
+    }
+
+    @Transactional
+    public BulkReminderResponse sendAll(String template) {
+        requireAutomaticChannel();
+
+        List<ReminderResponse> results = new ArrayList<>();
+        for (LateCustomerResponse lateCustomer : lateCustomerService.lateCustomers()) {
+            try {
+                ReminderPreview preview = prepareForCustomer(lateCustomer.customerId(), template);
+                results.add(doSend(preview.customer(), preview.amount(), preview.message()));
+            } catch (Exception e) {
+                log.warn("Echec de preparation/envoi de la relance pour le client {} : {}",
+                        lateCustomer.customerId(), e.getMessage());
+                results.add(new ReminderResponse(
+                        lateCustomer.customerId(),
+                        lateCustomer.customerName(),
+                        lateCustomer.phone(),
+                        BigDecimal.ZERO,
+                        "",
+                        notificationChannel.name(),
+                        false));
+            }
         }
-        if (request.customerId() != null) {
-            return generateForCustomer(request.customerId(), request.template());
+
+        int sent = (int) results.stream().filter(ReminderResponse::sent).count();
+        return new BulkReminderResponse(results.size(), sent, results.size() - sent, results);
+    }
+
+    private void requireAutomaticChannel() {
+        if (ManualCopyChannel.NAME.equals(notificationChannel.name())) {
+            throw new BusinessRuleException("Aucun canal automatique n'est configure : utilisez la copie manuelle");
+        }
+    }
+
+    private ReminderPreview prepare(Long saleId, Long customerId, String template) {
+        if (saleId != null) {
+            return prepareForSale(saleId, template);
+        }
+        if (customerId != null) {
+            return prepareForCustomer(customerId, template);
         }
         throw new BusinessRuleException("Indiquez un contrat ou un client pour generer la relance");
     }
 
-    private ReminderResponse generateForSale(Long saleId, String template) {
+    private ReminderResponse doSend(Customer customer, BigDecimal amount, String message) {
+        boolean sent = notificationChannel.send(customer.getPhone(), message);
+        auditLogService.record("CUSTOMER", customer.getId(), customer.getFullName(),
+                sent ? "REMINDER_SENT" : "REMINDER_FAILED", "Canal " + notificationChannel.name());
+        return new ReminderResponse(
+                customer.getId(),
+                customer.getFullName(),
+                customer.getPhone(),
+                amount,
+                message,
+                notificationChannel.name(),
+                sent);
+    }
+
+    private ReminderPreview prepareForSale(Long saleId, String template) {
         CreditSale sale = saleRepository.findDetailById(saleId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Contrat", saleId));
 
@@ -64,10 +141,10 @@ public class ReminderService {
                 target.map(Installment::getDueDate).orElse(null),
                 daysLate);
 
-        return respond(sale.getCustomer(), amount, messageBuilder.build(context, template));
+        return new ReminderPreview(sale.getCustomer(), amount, messageBuilder.build(context, template));
     }
 
-    private ReminderResponse generateForCustomer(Long customerId, String template) {
+    private ReminderPreview prepareForCustomer(Long customerId, String template) {
         Customer customer = customerService.getEntity(customerId);
         LocalDate today = LocalDate.now();
 
@@ -104,18 +181,6 @@ public class ReminderService {
                 first == null ? null : first.getDueDate(),
                 first == null ? 0L : first.daysLate(today));
 
-        return respond(customer, amount, messageBuilder.build(context, template));
-    }
-
-    private ReminderResponse respond(Customer customer, BigDecimal amount, String message) {
-        boolean sent = notificationChannel.send(customer.getPhone(), message);
-        return new ReminderResponse(
-                customer.getId(),
-                customer.getFullName(),
-                customer.getPhone(),
-                amount,
-                message,
-                notificationChannel.name(),
-                sent);
+        return new ReminderPreview(customer, amount, messageBuilder.build(context, template));
     }
 }

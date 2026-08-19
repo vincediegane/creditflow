@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   Box,
@@ -10,6 +10,7 @@ import {
   Chip,
   Grid,
   LinearProgress,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -21,8 +22,11 @@ import {
 } from '@mui/material';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import SendIcon from '@mui/icons-material/Send';
 
+import { errorMessage } from '../api/client';
 import { remindersApi } from '../api/endpoints';
+import { useAuth } from '../auth/AuthContext';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
 import PaymentDialog from '../components/PaymentDialog';
@@ -31,6 +35,9 @@ import { formatDate, formatMoney } from '../utils/format';
 
 export default function LateCustomersPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
 
   const [paymentSaleId, setPaymentSaleId] = useState<number | null>(null);
   const [reminder, setReminder] = useState<{
@@ -38,6 +45,7 @@ export default function LateCustomersPage() {
     name: string;
     phone: string;
   } | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   const query = useQuery({ queryKey: ['late-customers'], queryFn: remindersApi.lateCustomers });
   const settings = useQuery({ queryKey: ['reminder-settings'], queryFn: remindersApi.settings });
@@ -45,11 +53,56 @@ export default function LateCustomersPage() {
   const rows = query.data ?? [];
   const totalLate = rows.reduce((sum, row) => sum + row.lateAmount, 0);
 
+  const automaticChannelActive = settings.data?.channel !== 'MANUAL_COPY';
+  const canSendAutomatically = isAdmin && automaticChannelActive;
+
+  const invalidateAfterSend = () => {
+    queryClient.invalidateQueries({ queryKey: ['late-customers'] });
+    queryClient.invalidateQueries({ queryKey: ['audit-log'] });
+  };
+
+  const sendOneMutation = useMutation({
+    mutationFn: remindersApi.send,
+    onSuccess: (data) => {
+      invalidateAfterSend();
+      setFeedback(data.sent ? `Relance envoyée à ${data.customerName}` : `Échec de l'envoi à ${data.customerName}`);
+    },
+    onError: (err) => setFeedback(errorMessage(err, "Impossible d'envoyer la relance")),
+  });
+
+  const sendAllMutation = useMutation({
+    mutationFn: () => remindersApi.sendAll(),
+    onSuccess: (data) => {
+      invalidateAfterSend();
+      setFeedback(`${data.sent} relance(s) envoyée(s), ${data.failed} échec(s) sur ${data.total}`);
+    },
+    onError: (err) => setFeedback(errorMessage(err, "Impossible d'envoyer les relances")),
+  });
+
+  const handleSendAll = () => {
+    if (!window.confirm(`Envoyer une relance automatique aux ${rows.length} client(s) en retard ?`)) {
+      return;
+    }
+    sendAllMutation.mutate();
+  };
+
   return (
     <Box>
       <PageHeader
         title="Relances"
         subtitle="Clients en retard et génération des messages à copier"
+        action={
+          canSendAutomatically ? (
+            <Button
+              variant="contained"
+              startIcon={<SendIcon />}
+              disabled={sendAllMutation.isPending || rows.length === 0}
+              onClick={handleSendAll}
+            >
+              Envoyer les relances
+            </Button>
+          ) : undefined
+        }
       />
 
       {query.isLoading && <LinearProgress sx={{ mb: 2 }} />}
@@ -95,11 +148,21 @@ export default function LateCustomersPage() {
         </Grid>
       </Grid>
 
-      <Alert severity="info" sx={{ mb: 2.5 }}>
-        Aucun message n'est envoyé automatiquement dans cette version. Cliquez sur « Générer la
-        relance », copiez le texte, puis collez-le dans WhatsApp ou par SMS. Le branchement de
-        WhatsApp Cloud API est déjà prévu côté serveur.
-      </Alert>
+      {!automaticChannelActive && (
+        <Alert severity="info" sx={{ mb: 2.5 }}>
+          Aucun message n'est envoyé automatiquement dans cette version. Cliquez sur « Générer la
+          relance », copiez le texte, puis collez-le dans WhatsApp ou par SMS. Le branchement de
+          WhatsApp Cloud API est déjà prévu côté serveur.
+        </Alert>
+      )}
+
+      {automaticChannelActive && isAdmin && settings.data?.channel === 'WHATSAPP_CLOUD_API' && (
+        <Alert severity="info" sx={{ mb: 2.5 }}>
+          Les relances automatiques WhatsApp utilisent un modèle de message pré-approuvé par
+          Meta. En dehors des 24h suivant le dernier message du client, seul ce modèle peut être
+          envoyé — configurez-le dans Meta Business Manager avant d'activer ce canal.
+        </Alert>
+      )}
 
       <Card variant="outlined">
         <TableContainer>
@@ -162,6 +225,21 @@ export default function LateCustomersPage() {
                       >
                         Générer la relance
                       </Button>
+                      {canSendAutomatically && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="success"
+                          startIcon={<SendIcon />}
+                          disabled={
+                            sendOneMutation.isPending &&
+                            sendOneMutation.variables?.customerId === row.customerId
+                          }
+                          onClick={() => sendOneMutation.mutate({ customerId: row.customerId })}
+                        >
+                          Envoyer automatiquement
+                        </Button>
+                      )}
                     </Stack>
                   </TableCell>
                 </TableRow>
@@ -185,6 +263,13 @@ export default function LateCustomersPage() {
         customerName={reminder?.name}
         phone={reminder?.phone}
         onClose={() => setReminder(null)}
+      />
+
+      <Snackbar
+        open={Boolean(feedback)}
+        autoHideDuration={4000}
+        onClose={() => setFeedback(null)}
+        message={feedback}
       />
     </Box>
   );

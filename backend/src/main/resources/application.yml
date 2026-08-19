@@ -89,5 +89,15 @@ app:
       {{boutique}}
     window-start-day: 1
     window-end-day: 10
+  notification:
+    channel: ${NOTIFICATION_CHANNEL:manual}
+    default-country-code: ${NOTIFICATION_DEFAULT_COUNTRY_CODE:+221}
+    whatsapp:
+      phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
+      access-token: ${WHATSAPP_ACCESS_TOKEN:}
+      api-base-url: ${WHATSAPP_API_BASE_URL:https://graph.facebook.com}
+      api-version: ${WHATSAPP_API_VERSION:v20.0}
+      template-name: ${WHATSAPP_TEMPLATE_NAME:relance_creditflow}
+      template-language-code: ${WHATSAPP_TEMPLATE_LANGUAGE_CODE:fr}
   demo:
     seed: ${DEMO_SEED:true}

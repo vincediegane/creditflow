@@ -13,9 +13,11 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "app.notification.channel", havingValue = "manual", matchIfMissing = true)
 public class ManualCopyChannel implements NotificationChannel {
 
+    public static final String NAME = "MANUAL_COPY";
+
     @Override
     public String name() {
-        return "MANUAL_COPY";
+        return NAME;
     }
 
     @Override

@@ -1,9 +1,11 @@
 package com.creditflow.notification.web;
 
 import com.creditflow.config.AppProperties;
+import com.creditflow.notification.dto.BulkReminderResponse;
 import com.creditflow.notification.dto.LateCustomerResponse;
 import com.creditflow.notification.dto.ReminderRequest;
 import com.creditflow.notification.dto.ReminderResponse;
+import com.creditflow.notification.dto.SendAllRequest;
 import com.creditflow.notification.service.LateCustomerService;
 import com.creditflow.notification.service.NotificationChannel;
 import com.creditflow.notification.service.ReminderService;
@@ -11,6 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,6 +38,20 @@ public class ReminderController {
     @Operation(summary = "Generer le message de relance a copier")
     public ReminderResponse generate(@Valid @RequestBody ReminderRequest request) {
         return reminderService.generate(request);
+    }
+
+    @PostMapping("/send")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Envoyer une relance automatique a un client")
+    public ReminderResponse send(@Valid @RequestBody ReminderRequest request) {
+        return reminderService.send(request);
+    }
+
+    @PostMapping("/send-all")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Envoyer une relance automatique a tous les clients en retard")
+    public BulkReminderResponse sendAll(@RequestBody(required = false) SendAllRequest request) {
+        return reminderService.sendAll(request == null ? null : request.template());
     }
 
     @GetMapping("/late-customers")
