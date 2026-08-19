@@ -77,6 +77,6 @@ public class AuthService {
 
     private static UserResponse toResponse(User user) {
         return new UserResponse(user.getId(), user.getUsername(), user.getFullName(),
-                user.getRole().name(), user.isMustChangePassword());
+                user.getRole().name(), user.isMustChangePassword(), user.isEnabled());
     }
 }

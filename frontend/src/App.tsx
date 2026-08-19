@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import ProtectedRoute from './auth/ProtectedRoute';
+import RequireRole from './auth/RequireRole';
 import AppLayout from './components/AppLayout';
 import CustomerDetailPage from './pages/CustomerDetailPage';
 import CustomersPage from './pages/CustomersPage';
@@ -16,6 +17,7 @@ import ReportsPage from './pages/ReportsPage';
 import SaleDetailPage from './pages/SaleDetailPage';
 import SalesPage from './pages/SalesPage';
 import SearchPage from './pages/SearchPage';
+import UsersPage from './pages/UsersPage';
 
 export default function App() {
   return (
@@ -37,6 +39,9 @@ export default function App() {
           <Route path="rapports" element={<ReportsPage />} />
           <Route path="reprise" element={<ImportPage />} />
           <Route path="recherche" element={<SearchPage />} />
+          <Route element={<RequireRole role="ADMIN" />}>
+            <Route path="utilisateurs" element={<UsersPage />} />
+          </Route>
         </Route>
       </Route>
 

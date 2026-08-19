@@ -10,13 +10,31 @@ export interface PageResponse<T> {
   last: boolean;
 }
 
+export type Role = 'ADMIN' | 'SELLER';
+
 export interface User {
   id: number;
   username: string;
   fullName: string;
-  role: string;
+  role: Role;
   /** Impose l'écran de changement de mot de passe avant toute autre action. */
   mustChangePassword: boolean;
+}
+
+export interface UserAccount {
+  id: number;
+  username: string;
+  fullName: string;
+  role: Role;
+  enabled: boolean;
+  mustChangePassword: boolean;
+}
+
+export interface CreateUserPayload {
+  username: string;
+  password: string;
+  fullName: string;
+  role: Role;
 }
 
 export interface ChangePasswordPayload {

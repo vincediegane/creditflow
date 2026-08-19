@@ -6,6 +6,7 @@ public record UserResponse(
         String fullName,
         String role,
         /** Le client doit imposer le changement de mot de passe avant toute autre action. */
-        boolean mustChangePassword
+        boolean mustChangePassword,
+        boolean enabled
 ) {
 }

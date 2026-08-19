@@ -29,6 +29,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import PersonIcon from '@mui/icons-material/Person';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 
@@ -49,6 +50,7 @@ const NAV_ITEMS = [
   { to: '/relances', label: 'Relances', icon: <NotificationsActiveIcon /> },
   { to: '/rapports', label: 'Rapports', icon: <AssessmentIcon /> },
   { to: '/reprise', label: 'Reprise de données', icon: <UploadFileIcon /> },
+  { to: '/utilisateurs', label: 'Utilisateurs', icon: <PersonIcon />, adminOnly: true },
 ];
 
 export default function AppLayout() {
@@ -84,7 +86,7 @@ export default function AppLayout() {
       </Toolbar>
       <Divider />
       <List sx={{ px: 1.5, py: 2, flexGrow: 1 }}>
-        {NAV_ITEMS.map((item) => (
+        {NAV_ITEMS.filter((item) => !item.adminOnly || user?.role === 'ADMIN').map((item) => (
           <ListItemButton
             key={item.to}
             component={NavLink}
