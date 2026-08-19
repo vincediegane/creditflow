@@ -2,6 +2,7 @@ import { api } from './client';
 import type {
   AuthResponse,
   ChangePasswordPayload,
+  CreateUserPayload,
   Customer,
   CustomerPayload,
   ImportReport,
@@ -28,6 +29,7 @@ import type {
   SaleStatus,
   CreateSalePayload,
   User,
+  UserAccount,
 } from '../types';
 
 /* ----------------------------- Téléchargements ---------------------------- */
@@ -215,6 +217,16 @@ export const reportsApi = {
     const fallback = `${type.toLowerCase()}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
     downloadBlob(response.data, filenameFromHeaders(response.headers, fallback));
   },
+};
+
+/* --------------------------- Utilisateurs ---------------------------- */
+
+export const usersApi = {
+  list: () => api.get<UserAccount[]>('/users').then((r) => r.data),
+  create: (payload: CreateUserPayload) =>
+    api.post<UserAccount>('/users', payload).then((r) => r.data),
+  setEnabled: (id: number, enabled: boolean) =>
+    api.patch<UserAccount>(`/users/${id}/status`, { enabled }).then((r) => r.data),
 };
 
 /* ------------------------------ Recherche --------------------------- */
