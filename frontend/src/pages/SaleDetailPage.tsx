@@ -27,6 +27,7 @@ import ReceiptIcon from '@mui/icons-material/ReceiptLong';
 
 import { errorMessage } from '../api/client';
 import { paymentsApi, salesApi } from '../api/endpoints';
+import { useAuth } from '../auth/AuthContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
@@ -40,6 +41,7 @@ export default function SaleDetailPage() {
   const saleId = Number(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
@@ -164,7 +166,7 @@ export default function SaleDetailPage() {
                 )}
               </Stack>
 
-              {sale.status === 'ACTIVE' && (
+              {sale.status === 'ACTIVE' && user?.role === 'ADMIN' && (
                 <Button
                   fullWidth
                   color="error"
@@ -253,15 +255,17 @@ export default function SaleDetailPage() {
                               <ReceiptIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Annuler ce versement">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => setPaymentToDelete(payment.id)}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                          {user?.role === 'ADMIN' && (
+                            <Tooltip title="Annuler ce versement">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => setPaymentToDelete(payment.id)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

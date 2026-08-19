@@ -28,6 +28,7 @@ import SearchIcon from '@mui/icons-material/Search';
 
 import { errorMessage } from '../api/client';
 import { paymentsApi } from '../api/endpoints';
+import { useAuth } from '../auth/AuthContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
@@ -37,6 +38,7 @@ import { PAYMENT_METHOD_LABELS, formatDate, formatMoney } from '../utils/format'
 
 export default function PaymentsPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [search, setSearch] = useState('');
   const [method, setMethod] = useState<PaymentMethod | ''>('');
@@ -200,11 +202,13 @@ export default function PaymentsPage() {
                         <ReceiptIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Annuler ce versement">
-                      <IconButton size="small" color="error" onClick={() => setToDelete(payment.id)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    {user?.role === 'ADMIN' && (
+                      <Tooltip title="Annuler ce versement">
+                        <IconButton size="small" color="error" onClick={() => setToDelete(payment.id)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

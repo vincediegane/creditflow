@@ -35,6 +35,7 @@ import VisibilityIcon from '@mui/icons-material/VisibilityOutlined';
 
 import { errorMessage } from '../api/client';
 import { customersApi } from '../api/endpoints';
+import { useAuth } from '../auth/AuthContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
@@ -55,6 +56,7 @@ const EMPTY_FORM: CustomerPayload = {
 export default function CustomersPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -214,11 +216,13 @@ export default function CustomersPage() {
                         <EditIcon />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Supprimer">
-                      <IconButton color="error" onClick={() => setToDelete(customer)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
+                    {user?.role === 'ADMIN' && (
+                      <Tooltip title="Supprimer">
+                        <IconButton color="error" onClick={() => setToDelete(customer)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

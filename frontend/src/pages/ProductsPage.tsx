@@ -32,6 +32,7 @@ import SearchIcon from '@mui/icons-material/Search';
 
 import { errorMessage } from '../api/client';
 import { productsApi } from '../api/endpoints';
+import { useAuth } from '../auth/AuthContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
@@ -51,6 +52,7 @@ const EMPTY_FORM: ProductPayload = {
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -144,9 +146,11 @@ export default function ProductsPage() {
         title="Produits"
         subtitle="Catalogue des téléphones, ordinateurs et accessoires"
         action={
-          <Button variant="contained" size="large" startIcon={<AddIcon />} onClick={openCreate}>
-            Nouveau produit
-          </Button>
+          user?.role === 'ADMIN' && (
+            <Button variant="contained" size="large" startIcon={<AddIcon />} onClick={openCreate}>
+              Nouveau produit
+            </Button>
+          )
         }
       />
 
@@ -218,16 +222,20 @@ export default function ProductsPage() {
                     <StatusChip status={product.status} kind="product" />
                   </TableCell>
                   <TableCell align="right">
-                    <Tooltip title="Modifier">
-                      <IconButton onClick={() => openEdit(product)}>
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Supprimer">
-                      <IconButton color="error" onClick={() => setToDelete(product)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
+                    {user?.role === 'ADMIN' && (
+                      <>
+                        <Tooltip title="Modifier">
+                          <IconButton onClick={() => openEdit(product)}>
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Supprimer">
+                          <IconButton color="error" onClick={() => setToDelete(product)}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
