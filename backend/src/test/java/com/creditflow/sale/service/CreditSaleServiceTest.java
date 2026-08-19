@@ -6,6 +6,10 @@ import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.service.CustomerService;
 import com.creditflow.payment.mapper.PaymentMapper;
 import com.creditflow.payment.repository.PaymentRepository;
+import com.creditflow.penalty.domain.PenaltyPeriod;
+import com.creditflow.penalty.domain.PenaltyRateType;
+import com.creditflow.penalty.domain.PenaltySettings;
+import com.creditflow.penalty.service.PenaltySettingsService;
 import com.creditflow.product.domain.Product;
 import com.creditflow.product.service.ProductService;
 import com.creditflow.sale.domain.CreditSale;
@@ -67,6 +71,9 @@ class CreditSaleServiceTest {
     @Mock
     private AuditLogService auditLogService;
 
+    @Mock
+    private PenaltySettingsService penaltySettingsService;
+
     @InjectMocks
     private CreditSaleService creditSaleService;
 
@@ -74,6 +81,9 @@ class CreditSaleServiceTest {
 
     @BeforeEach
     void setUp() {
+        when(penaltySettingsService.current()).thenReturn(PenaltySettings.builder()
+                .id(1L).enabled(false).rateType(PenaltyRateType.FIXED)
+                .rate(java.math.BigDecimal.ZERO).period(PenaltyPeriod.DAY).build());
         Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").build();
         Product product = Product.builder().id(1L).name("iPhone 13").build();
         sale = CreditSale.builder()

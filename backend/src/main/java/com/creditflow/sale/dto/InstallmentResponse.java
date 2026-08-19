@@ -23,6 +23,7 @@ public record InstallmentResponse(
         String displayStatus,
         boolean late,
         long daysLate,
-        LocalDate paidAt
+        LocalDate paidAt,
+        BigDecimal penaltyAmount
 ) {
 }

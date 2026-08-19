@@ -18,6 +18,7 @@ public record LateCustomerResponse(
         BigDecimal remainingAmount,
         Long primarySaleId,
         String primarySaleReference,
-        BigDecimal monthlyAmount
+        BigDecimal monthlyAmount,
+        BigDecimal penaltyAmount
 ) {
 }

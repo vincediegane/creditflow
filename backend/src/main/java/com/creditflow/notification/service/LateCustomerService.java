@@ -2,6 +2,9 @@ package com.creditflow.notification.service;
 
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.notification.dto.LateCustomerResponse;
+import com.creditflow.penalty.domain.PenaltySettings;
+import com.creditflow.penalty.service.PenaltyCalculator;
+import com.creditflow.penalty.service.PenaltySettingsService;
 import com.creditflow.sale.domain.CreditSale;
 import com.creditflow.sale.domain.Installment;
 import com.creditflow.sale.repository.InstallmentRepository;
@@ -27,22 +30,25 @@ import java.util.stream.Collectors;
 public class LateCustomerService {
 
     private final InstallmentRepository installmentRepository;
+    private final PenaltySettingsService penaltySettingsService;
+    private final PenaltyCalculator penaltyCalculator;
 
     @Transactional(readOnly = true)
     public List<LateCustomerResponse> lateCustomers() {
         LocalDate today = LocalDate.now();
+        PenaltySettings settings = penaltySettingsService.current();
 
         Map<Long, List<Installment>> byCustomer = installmentRepository.findLate(today).stream()
                 .collect(Collectors.groupingBy(i -> i.getSale().getCustomer().getId(),
                         LinkedHashMap::new, Collectors.toList()));
 
         return byCustomer.values().stream()
-                .map(installments -> toResponse(installments, today))
+                .map(installments -> toResponse(installments, today, settings))
                 .sorted(Comparator.comparingLong(LateCustomerResponse::daysLate).reversed())
                 .toList();
     }
 
-    private LateCustomerResponse toResponse(List<Installment> installments, LocalDate today) {
+    private LateCustomerResponse toResponse(List<Installment> installments, LocalDate today, PenaltySettings settings) {
         Installment oldest = installments.stream()
                 .min(Comparator.comparing(Installment::getDueDate))
                 .orElseThrow();
@@ -65,6 +71,8 @@ public class LateCustomerService {
                 .distinct()
                 .collect(Collectors.joining(", "));
 
+        BigDecimal penaltyAmount = penaltyCalculator.totalOutstanding(installments, settings, today);
+
         return new LateCustomerResponse(
                 customer.getId(),
                 customer.getFullName(),
@@ -77,6 +85,7 @@ public class LateCustomerService {
                 remaining,
                 primarySale.getId(),
                 primarySale.getReference(),
-                primarySale.getMonthlyAmount());
+                primarySale.getMonthlyAmount(),
+                penaltyAmount);
     }
 }

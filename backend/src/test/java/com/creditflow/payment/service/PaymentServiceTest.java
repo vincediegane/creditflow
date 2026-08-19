@@ -72,6 +72,9 @@ class PaymentServiceTest {
     private PenaltySettingsService penaltySettingsService;
 
     @Spy
+    private PenaltyCalculator penaltyCalculator = new PenaltyCalculator();
+
+    @Spy
     private PaymentAllocator paymentAllocator = new PaymentAllocator(new PenaltyCalculator());
 
     @InjectMocks
