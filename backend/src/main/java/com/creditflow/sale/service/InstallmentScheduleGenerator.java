@@ -58,4 +58,13 @@ public class InstallmentScheduleGenerator {
         LocalDate endDate = lines.get(lines.size() - 1).dueDate();
         return new Schedule(monthly, endDate, List.copyOf(lines));
     }
+
+    public BigDecimal interestAmount(BigDecimal totalPrice, BigDecimal interestRate, BigDecimal interestFee) {
+        BigDecimal total = Money.round(totalPrice);
+        BigDecimal rate = Money.nullToZero(interestRate);
+        BigDecimal fee = Money.round(Money.nullToZero(interestFee));
+        BigDecimal fromRate = Money.round(
+                total.multiply(rate).divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP));
+        return fromRate.add(fee);
+    }
 }

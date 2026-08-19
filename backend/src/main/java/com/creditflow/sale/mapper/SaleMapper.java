@@ -41,6 +41,8 @@ public class SaleMapper {
                 sale.getProduct().getId(),
                 sale.getProduct().getName(),
                 sale.getTotalPrice(),
+                sale.getInterestRate(),
+                sale.getInterestAmount(),
                 sale.getDownPayment(),
                 sale.getFinancedAmount(),
                 sale.getInstallmentCount(),

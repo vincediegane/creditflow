@@ -150,7 +150,7 @@ public class DemoDataSeeder {
             LocalDate startDate = today.minusMonths(1L + random.nextInt(8)).withDayOfMonth(5);
 
             sales.add(creditSaleService.create(new CreateSaleRequest(
-                    customer.id(), product.id(), price, downPayment, months, startDate,
+                    customer.id(), product.id(), price, downPayment, null, null, months, startDate,
                     "Contrat de demonstration")));
         }
         return sales;

@@ -73,4 +73,65 @@ class InstallmentScheduleGeneratorTest {
         assertThatThrownBy(() -> generator.generate(new BigDecimal("100000"), 0, LocalDate.now()))
                 .isInstanceOf(BusinessRuleException.class);
     }
+
+    @Test
+    @DisplayName("calcule l'interet a partir d'un taux seul")
+    void interestFromRateOnly() {
+        BigDecimal interest = generator.interestAmount(new BigDecimal("200000"), new BigDecimal("10"), null);
+
+        assertThat(interest).isEqualByComparingTo("20000");
+    }
+
+    @Test
+    @DisplayName("calcule l'interet a partir de frais fixes seuls")
+    void interestFromFeeOnly() {
+        BigDecimal interest = generator.interestAmount(new BigDecimal("200000"), null, new BigDecimal("3000"));
+
+        assertThat(interest).isEqualByComparingTo("3000");
+    }
+
+    @Test
+    @DisplayName("combine taux et frais fixes")
+    void interestFromRateAndFee() {
+        BigDecimal interest = generator.interestAmount(
+                new BigDecimal("200000"), new BigDecimal("10"), new BigDecimal("3000"));
+
+        assertThat(interest).isEqualByComparingTo("23000");
+    }
+
+    @Test
+    @DisplayName("traite un taux et des frais nuls comme zero, pour la retrocompatibilite")
+    void interestNullTreatedAsZero() {
+        BigDecimal interest = generator.interestAmount(new BigDecimal("200000"), null, null);
+
+        assertThat(interest).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("arrondit chaque composante de l'interet a l'unite FCFA")
+    void interestRoundedToUnit() {
+        BigDecimal interest = generator.interestAmount(new BigDecimal("100000"), new BigDecimal("3.33"), null);
+
+        assertThat(interest).isEqualByComparingTo("3330");
+    }
+
+    @Test
+    @DisplayName("la somme des echeances egale exactement le montant finance avec interet")
+    void sumEqualsFinancedAmountWithInterest() {
+        BigDecimal totalPrice = new BigDecimal("200000");
+        BigDecimal downPayment = new BigDecimal("50000");
+        BigDecimal interestAmount = generator.interestAmount(totalPrice, new BigDecimal("10"), new BigDecimal("3000"));
+        assertThat(interestAmount).isEqualByComparingTo("23000");
+
+        BigDecimal financed = totalPrice.add(interestAmount).subtract(downPayment);
+        assertThat(financed).isEqualByComparingTo("173000");
+
+        var schedule = generator.generate(financed, 6, LocalDate.of(2026, 1, 5));
+
+        BigDecimal sum = schedule.lines().stream()
+                .map(InstallmentScheduleGenerator.ScheduleLine::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        assertThat(sum).isEqualByComparingTo("173000");
+    }
 }

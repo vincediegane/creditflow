@@ -128,6 +128,7 @@ public class LegacyImportService {
 
             SaleResponse sale = creditSaleService.create(new CreateSaleRequest(
                     customer.getId(), product.getId(), row.totalPrice(), row.downPayment(),
+                    null, null,
                     row.installmentCount(), row.startDate(),
                     "Contrat repris depuis l'ancien suivi papier"));
 
