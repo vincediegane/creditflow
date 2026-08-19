@@ -58,6 +58,12 @@ public class CreditSale extends Auditable {
     @Column(name = "total_price", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalPrice;
 
+    @Column(name = "interest_rate", precision = 5, scale = 2)
+    private BigDecimal interestRate;
+
+    @Column(name = "interest_amount", nullable = false, precision = 15, scale = 2)
+    private BigDecimal interestAmount;
+
     @Column(name = "down_payment", nullable = false, precision = 15, scale = 2)
     private BigDecimal downPayment;
 

@@ -105,11 +105,20 @@ public class CreditSaleService {
     /** Simulation d'echeancier, sans persistance. */
     @Transactional(readOnly = true)
     public SalePreviewResponse preview(SalePreviewRequest request) {
-        BigDecimal financed = financedAmount(request.totalPrice(), request.downPayment());
+        BigDecimal totalPrice = Money.round(request.totalPrice());
+        BigDecimal downPayment = Money.round(Money.nullToZero(request.downPayment()));
+        validateDownPayment(totalPrice, downPayment);
+
+        BigDecimal interestAmount =
+                scheduleGenerator.interestAmount(totalPrice, request.interestRate(), request.interestFee());
+        BigDecimal financed = totalPrice.add(interestAmount).subtract(downPayment);
+
         InstallmentScheduleGenerator.Schedule schedule =
                 scheduleGenerator.generate(financed, request.installmentCount(), request.startDate());
 
         return new SalePreviewResponse(
+                totalPrice,
+                interestAmount,
                 financed,
                 schedule.monthlyAmount(),
                 schedule.endDate(),
@@ -125,7 +134,11 @@ public class CreditSaleService {
 
         BigDecimal totalPrice = Money.round(request.totalPrice());
         BigDecimal downPayment = Money.round(Money.nullToZero(request.downPayment()));
-        BigDecimal financed = financedAmount(totalPrice, downPayment);
+        validateDownPayment(totalPrice, downPayment);
+
+        BigDecimal interestAmount =
+                scheduleGenerator.interestAmount(totalPrice, request.interestRate(), request.interestFee());
+        BigDecimal financed = totalPrice.add(interestAmount).subtract(downPayment);
 
         InstallmentScheduleGenerator.Schedule schedule =
                 scheduleGenerator.generate(financed, request.installmentCount(), request.startDate());
@@ -135,6 +148,8 @@ public class CreditSaleService {
                 .customer(customer)
                 .product(product)
                 .totalPrice(totalPrice)
+                .interestRate(request.interestRate())
+                .interestAmount(interestAmount)
                 .downPayment(downPayment)
                 .financedAmount(financed)
                 .installmentCount(request.installmentCount())
@@ -199,13 +214,10 @@ public class CreditSaleService {
         return installmentRepository.findBySaleIdOrderByNumberAsc(saleId);
     }
 
-    private BigDecimal financedAmount(BigDecimal totalPrice, BigDecimal downPayment) {
-        BigDecimal total = Money.round(totalPrice);
-        BigDecimal down = Money.round(Money.nullToZero(downPayment));
-        if (down.compareTo(total) >= 0) {
+    private void validateDownPayment(BigDecimal totalPrice, BigDecimal downPayment) {
+        if (downPayment.compareTo(totalPrice) >= 0) {
             throw new BusinessRuleException("L'acompte doit etre inferieur au prix total");
         }
-        return total.subtract(down);
     }
 
     private String buildReference(CreditSale sale) {

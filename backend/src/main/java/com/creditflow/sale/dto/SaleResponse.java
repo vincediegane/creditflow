@@ -15,6 +15,8 @@ public record SaleResponse(
         Long productId,
         String productName,
         BigDecimal totalPrice,
+        BigDecimal interestRate,
+        BigDecimal interestAmount,
         BigDecimal downPayment,
         BigDecimal financedAmount,
         Integer installmentCount,

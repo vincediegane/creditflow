@@ -33,6 +33,8 @@ interface FormValues {
   productId: number | '';
   totalPrice: number | '';
   downPayment: number | '';
+  interestRate: number | '';
+  interestFee: number | '';
   installmentCount: number | '';
   startDate: string;
   notes: string;
@@ -52,6 +54,8 @@ export default function NewSalePage() {
       productId: '',
       totalPrice: '',
       downPayment: 0,
+      interestRate: '',
+      interestFee: '',
       installmentCount: 6,
       startDate: today(),
       notes: '',
@@ -91,13 +95,23 @@ export default function NewSalePage() {
       previewMutation.mutate({
         totalPrice: Number(values.totalPrice),
         downPayment: Number(values.downPayment ?? 0),
+        interestRate: values.interestRate === '' || values.interestRate == null ? undefined : Number(values.interestRate),
+        interestFee: values.interestFee === '' || values.interestFee == null ? undefined : Number(values.interestFee),
         installmentCount: Number(values.installmentCount),
         startDate: String(values.startDate),
       });
     }, 350);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canPreview, values.totalPrice, values.downPayment, values.installmentCount, values.startDate]);
+  }, [
+    canPreview,
+    values.totalPrice,
+    values.downPayment,
+    values.interestRate,
+    values.interestFee,
+    values.installmentCount,
+    values.startDate,
+  ]);
 
   const submit = handleSubmit((form) => {
     setError(null);
@@ -110,6 +124,8 @@ export default function NewSalePage() {
       productId: Number(form.productId),
       totalPrice: Number(form.totalPrice),
       downPayment: Number(form.downPayment || 0),
+      interestRate: form.interestRate === '' || form.interestRate == null ? undefined : Number(form.interestRate),
+      interestFee: form.interestFee === '' || form.interestFee == null ? undefined : Number(form.interestFee),
       installmentCount: Number(form.installmentCount),
       startDate: form.startDate,
       notes: form.notes || undefined,
@@ -198,6 +214,24 @@ export default function NewSalePage() {
                     <TextField
                       fullWidth
                       type="number"
+                      label="Taux d'intérêt %"
+                      inputProps={{ min: 0, max: 100, step: 0.5 }}
+                      {...register('interestRate', { min: 0, max: 100 })}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="Frais de dossier (FCFA)"
+                      inputProps={{ min: 0, step: 500 }}
+                      {...register('interestFee', { min: 0 })}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      type="number"
                       label="Nombre de mensualités"
                       inputProps={{ min: 1, max: 60 }}
                       {...register('installmentCount', { required: true, min: 1, max: 60 })}
@@ -253,6 +287,8 @@ export default function NewSalePage() {
               {preview && (
                 <>
                   <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Summary label="Prix comptant" value={formatMoney(preview.totalPrice)} />
+                    <Summary label="Intérêt / frais" value={formatMoney(preview.interestAmount)} />
                     <Summary label="Montant à financer" value={formatMoney(preview.financedAmount)} />
                     <Summary label="Mensualité" value={formatMoney(preview.monthlyAmount)} />
                     <Summary label="Date de fin" value={formatDate(preview.endDate)} />

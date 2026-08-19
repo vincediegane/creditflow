@@ -155,6 +155,8 @@ export interface Sale {
   productId: number;
   productName: string;
   totalPrice: number;
+  interestRate?: number;
+  interestAmount: number;
   downPayment: number;
   financedAmount: number;
   installmentCount: number;
@@ -182,12 +184,16 @@ export interface CreateSalePayload {
   productId: number;
   totalPrice: number;
   downPayment: number;
+  interestRate?: number;
+  interestFee?: number;
   installmentCount: number;
   startDate: string;
   notes?: string;
 }
 
 export interface SalePreview {
+  totalPrice: number;
+  interestAmount: number;
   financedAmount: number;
   monthlyAmount: number;
   endDate: string;

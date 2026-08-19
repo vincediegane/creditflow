@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 public record SalePreviewResponse(
+        BigDecimal totalPrice,
+        BigDecimal interestAmount,
         BigDecimal financedAmount,
         BigDecimal monthlyAmount,
         LocalDate endDate,
