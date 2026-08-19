@@ -10,6 +10,11 @@ import com.creditflow.payment.dto.PaymentRequest;
 import com.creditflow.payment.export.PaymentReceiptGenerator;
 import com.creditflow.payment.mapper.PaymentMapper;
 import com.creditflow.payment.repository.PaymentRepository;
+import com.creditflow.penalty.domain.PenaltyPeriod;
+import com.creditflow.penalty.domain.PenaltyRateType;
+import com.creditflow.penalty.domain.PenaltySettings;
+import com.creditflow.penalty.service.PenaltyCalculator;
+import com.creditflow.penalty.service.PenaltySettingsService;
 import com.creditflow.product.domain.Product;
 import com.creditflow.sale.domain.CreditSale;
 import com.creditflow.sale.domain.Installment;
@@ -63,8 +68,11 @@ class PaymentServiceTest {
     @Mock
     private AuditLogService auditLogService;
 
+    @Mock
+    private PenaltySettingsService penaltySettingsService;
+
     @Spy
-    private PaymentAllocator paymentAllocator = new PaymentAllocator();
+    private PaymentAllocator paymentAllocator = new PaymentAllocator(new PenaltyCalculator());
 
     @InjectMocks
     private PaymentService paymentService;
@@ -78,6 +86,17 @@ class PaymentServiceTest {
         when(saleRepository.save(any(CreditSale.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(paymentMapper.toResponse(any(Payment.class))).thenReturn(null);
+        when(penaltySettingsService.current()).thenReturn(disabledPenaltySettings());
+    }
+
+    private PenaltySettings disabledPenaltySettings() {
+        return PenaltySettings.builder()
+                .id(1L)
+                .enabled(false)
+                .rateType(PenaltyRateType.FIXED)
+                .rate(BigDecimal.ZERO)
+                .period(PenaltyPeriod.DAY)
+                .build();
     }
 
     @Test
@@ -107,6 +126,44 @@ class PaymentServiceTest {
         assertThatThrownBy(() -> paymentService.register(request(new BigDecimal("200000"))))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("depasse le reste a payer");
+    }
+
+    @Test
+    @DisplayName("la penalite est imputee avant le principal")
+    void penaltyIsAppliedBeforePrincipal() {
+        Installment first = sale.getInstallments().get(0);
+        first.setDueDate(LocalDate.now().minusDays(4));
+        sale.getInstallments().get(1).setDueDate(LocalDate.now().plusDays(10));
+        sale.getInstallments().get(2).setDueDate(LocalDate.now().plusDays(40));
+        when(penaltySettingsService.current()).thenReturn(enabledPenaltySettings());
+
+        paymentService.register(request(new BigDecimal("3000")));
+
+        assertThat(first.getPenaltyPaid()).isEqualByComparingTo("3000");
+        assertThat(first.getAmountPaid()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("accepte un versement superieur au reste principal mais couvrant reste + penalite en cours")
+    void acceptsOverpaymentCoveredByPenalty() {
+        sale.getInstallments().get(0).setDueDate(LocalDate.now().minusDays(60));
+        sale.getInstallments().get(1).setDueDate(LocalDate.now().plusDays(10));
+        sale.getInstallments().get(2).setDueDate(LocalDate.now().plusDays(40));
+        when(penaltySettingsService.current()).thenReturn(enabledPenaltySettings());
+
+        paymentService.register(request(new BigDecimal("200000")));
+
+        assertThat(sale.getInstallments().get(0).getPenaltyPaid()).isEqualByComparingTo("60000");
+    }
+
+    private PenaltySettings enabledPenaltySettings() {
+        return PenaltySettings.builder()
+                .id(1L)
+                .enabled(true)
+                .rateType(PenaltyRateType.FIXED)
+                .rate(new BigDecimal("1000"))
+                .period(PenaltyPeriod.DAY)
+                .build();
     }
 
     @Test
@@ -145,6 +202,27 @@ class PaymentServiceTest {
         order.verify(auditLogService).record("CREDIT_SALE", sale.getId(), sale.getReference(), "PAYMENT_DELETE",
                 "Versement de 50000 le %s (CASH)".formatted(LocalDate.now()));
         order.verify(paymentRepository).delete(payment);
+    }
+
+    @Test
+    @DisplayName("delete() rejoue les versements avec penalite active et recalcule penaltyPaid")
+    void deleteRecalculatesPenaltyPaid() {
+        Installment first = sale.getInstallments().get(0);
+        first.setDueDate(LocalDate.now().minusDays(4));
+        first.setPenaltyPaid(new BigDecimal("9999.00"));
+        Payment toDelete = Payment.builder()
+                .id(9L).sale(sale).amount(new BigDecimal("1000"))
+                .paymentDate(LocalDate.now()).method(PaymentMethod.CASH).build();
+        Payment historical = Payment.builder()
+                .id(5L).sale(sale).amount(new BigDecimal("2000"))
+                .paymentDate(LocalDate.now()).method(PaymentMethod.CASH).build();
+        when(paymentRepository.findById(9L)).thenReturn(Optional.of(toDelete));
+        when(paymentRepository.findBySaleIdOrderByPaymentDateAscIdAsc(sale.getId())).thenReturn(List.of(historical));
+        when(penaltySettingsService.current()).thenReturn(enabledPenaltySettings());
+
+        paymentService.delete(9L);
+
+        assertThat(first.getPenaltyPaid()).isEqualByComparingTo("2000");
     }
 
     private PaymentRequest request(BigDecimal amount) {

@@ -1,5 +1,6 @@
 package com.creditflow.sale.domain;
 
+import com.creditflow.common.util.Money;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -56,6 +57,10 @@ public class Installment {
 
     @Column(name = "paid_at")
     private LocalDate paidAt;
+
+    @Column(name = "penalty_paid", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal penaltyPaid = Money.ZERO;
 
     public BigDecimal getRemaining() {
         return amount.subtract(amountPaid == null ? BigDecimal.ZERO : amountPaid).max(BigDecimal.ZERO);
