@@ -102,6 +102,8 @@ export interface Customer {
   notes?: string;
   active: boolean;
   createdAt: string;
+  createdBy?: string;
+  updatedBy?: string;
 }
 
 export interface CustomerPayload {
@@ -128,6 +130,8 @@ export interface Product {
   status: ProductStatus;
   sellable: boolean;
   createdAt: string;
+  createdBy?: string;
+  updatedBy?: string;
 }
 
 export interface ProductPayload {
@@ -168,6 +172,8 @@ export interface Sale {
   paidInstallments: number;
   notes?: string;
   createdAt: string;
+  createdBy?: string;
+  updatedBy?: string;
 }
 
 export interface CreateSalePayload {
@@ -227,6 +233,7 @@ export interface Payment {
   notes?: string;
   saleRemainingAmount: number;
   createdAt: string;
+  createdBy?: string;
 }
 
 export interface PaymentPayload {
@@ -331,4 +338,17 @@ export interface GlobalSearchResult {
   products: Product[];
   sales: Sale[];
   totalResults: number;
+}
+
+export type AuditEntityType = 'CUSTOMER' | 'CREDIT_SALE' | 'PRODUCT';
+
+export interface AuditLogEntry {
+  id: number;
+  entityType: AuditEntityType;
+  entityId: number;
+  entityLabel: string;
+  action: string;
+  details?: string;
+  actor?: string;
+  createdAt: string;
 }

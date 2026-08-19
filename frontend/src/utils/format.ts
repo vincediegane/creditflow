@@ -78,6 +78,13 @@ export const PRODUCT_STATUS_LABELS: Record<string, string> = {
   OUT_OF_STOCK: 'Rupture',
 };
 
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  CANCEL: 'Annulation du contrat',
+  DELETE: 'Suppression du contrat',
+  PAYMENT_DELETE: "Annulation d'un versement",
+  PRICE_UPDATE: 'Modification de prix',
+};
+
 export function initials(fullName: string): string {
   return fullName
     .split(' ')
