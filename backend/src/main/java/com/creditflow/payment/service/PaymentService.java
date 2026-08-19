@@ -1,5 +1,6 @@
 package com.creditflow.payment.service;
 
+import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.dto.PageResponse;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
@@ -45,6 +46,7 @@ public class PaymentService {
     private final PaymentAllocator paymentAllocator;
     private final PaymentMapper paymentMapper;
     private final PaymentReceiptGenerator receiptGenerator;
+    private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public PageResponse<PaymentResponse> search(String search, PaymentMethod method, LocalDate from, LocalDate to,
@@ -148,6 +150,10 @@ public class PaymentService {
                 .orElseThrow(() -> ResourceNotFoundException.of("Paiement", id));
         CreditSale sale = saleRepository.findDetailById(payment.getSale().getId())
                 .orElseThrow(() -> ResourceNotFoundException.of("Contrat", payment.getSale().getId()));
+
+        String details = "Versement de %s le %s (%s)".formatted(
+                payment.getAmount().toPlainString(), payment.getPaymentDate(), payment.getMethod());
+        auditLogService.record("CREDIT_SALE", sale.getId(), sale.getReference(), "PAYMENT_DELETE", details);
 
         paymentRepository.delete(payment);
         paymentRepository.flush();

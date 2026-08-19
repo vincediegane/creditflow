@@ -1,5 +1,6 @@
 package com.creditflow.customer.service;
 
+import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.dto.PageResponse;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
@@ -32,6 +33,7 @@ public class CustomerService {
     private final CustomerRepository customerRepository;
     private final CustomerMapper customerMapper;
     private final FileStorageService fileStorageService;
+    private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public PageResponse<CustomerResponse> search(String search, Pageable pageable) {
@@ -103,6 +105,7 @@ public class CustomerService {
     @Transactional
     public void delete(Long id) {
         Customer customer = getEntity(id);
+        auditLogService.record("CUSTOMER", id, customer.getFullName(), "DELETE", null);
         fileStorageService.deleteByPublicUrl(customer.getPhotoUrl());
         customerRepository.delete(customer);
         log.info("Client supprime: {}", id);

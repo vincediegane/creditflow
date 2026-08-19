@@ -20,6 +20,7 @@ public record PaymentResponse(
         String reference,
         String notes,
         BigDecimal saleRemainingAmount,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String createdBy
 ) {
 }

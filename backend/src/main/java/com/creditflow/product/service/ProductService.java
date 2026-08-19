@@ -1,5 +1,6 @@
 package com.creditflow.product.service;
 
+import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.dto.PageResponse;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.repository.Specs;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Slf4j
@@ -30,6 +32,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
+    private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> search(String search, String category, ProductStatus status,
@@ -93,12 +96,41 @@ public class ProductService {
     @Transactional
     public ProductResponse update(Long id, ProductRequest request) {
         Product product = getEntity(id);
+        BigDecimal oldCashPrice = product.getCashPrice();
+        BigDecimal oldCreditPrice = product.getCreditPrice();
+
         productMapper.updateEntity(request, product);
         product.setDescription(request.description());
         product.setCashPrice(Money.round(request.cashPrice()));
         product.setCreditPrice(Money.round(request.creditPrice()));
         product.setStatus(resolveStatus(request.status(), request.stock()));
+
+        recordPriceChange(product, oldCashPrice, oldCreditPrice);
+
         return productMapper.toResponse(productRepository.save(product));
+    }
+
+    private void recordPriceChange(Product product, BigDecimal oldCashPrice, BigDecimal oldCreditPrice) {
+        boolean cashChanged = oldCashPrice.compareTo(product.getCashPrice()) != 0;
+        boolean creditChanged = oldCreditPrice.compareTo(product.getCreditPrice()) != 0;
+        if (!cashChanged && !creditChanged) {
+            return;
+        }
+
+        StringBuilder details = new StringBuilder();
+        if (creditChanged) {
+            details.append("Prix credit: %s -> %s".formatted(
+                    oldCreditPrice.toPlainString(), product.getCreditPrice().toPlainString()));
+        }
+        if (cashChanged) {
+            if (details.length() > 0) {
+                details.append(", ");
+            }
+            details.append("Prix cash: %s -> %s".formatted(
+                    oldCashPrice.toPlainString(), product.getCashPrice().toPlainString()));
+        }
+
+        auditLogService.record("PRODUCT", product.getId(), product.getName(), "PRICE_UPDATE", details.toString());
     }
 
     @Transactional

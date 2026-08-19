@@ -43,7 +43,7 @@ class ProductControllerSecurityTest extends AbstractWebMvcSecurityTest {
 
     private ProductResponse response() {
         return new ProductResponse(1L, "Telephone", "Electronique", BigDecimal.valueOf(100000),
-                BigDecimal.valueOf(120000), 10, null, ProductStatus.ACTIVE, true, LocalDateTime.now());
+                BigDecimal.valueOf(120000), 10, null, ProductStatus.ACTIVE, true, LocalDateTime.now(), null, null);
     }
 
     @Test

@@ -18,6 +18,8 @@ public record CustomerResponse(
         LocalDateTime createdAt,
         Long salesCount,
         BigDecimal totalRemaining,
-        boolean late
+        boolean late,
+        String createdBy,
+        String updatedBy
 ) {
 }

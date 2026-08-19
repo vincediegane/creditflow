@@ -15,6 +15,8 @@ public record ProductResponse(
         String description,
         ProductStatus status,
         boolean sellable,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String createdBy,
+        String updatedBy
 ) {
 }

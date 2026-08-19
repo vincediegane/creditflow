@@ -1,5 +1,6 @@
 package com.creditflow.payment.service;
 
+import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.util.Money;
 import com.creditflow.customer.domain.Customer;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -36,6 +38,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,6 +59,9 @@ class PaymentServiceTest {
 
     @Mock
     private PaymentReceiptGenerator receiptGenerator;
+
+    @Mock
+    private AuditLogService auditLogService;
 
     @Spy
     private PaymentAllocator paymentAllocator = new PaymentAllocator();
@@ -122,6 +128,23 @@ class PaymentServiceTest {
         assertThatThrownBy(() -> paymentService.register(request))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("futur");
+    }
+
+    @Test
+    @DisplayName("la suppression d'un versement journalise l'action sur le contrat")
+    void deletingPaymentRecordsAuditEntryOnSale() {
+        Payment payment = Payment.builder()
+                .id(9L).sale(sale).amount(new BigDecimal("50000"))
+                .paymentDate(LocalDate.now()).method(PaymentMethod.CASH).build();
+        when(paymentRepository.findById(9L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findBySaleIdOrderByPaymentDateAscIdAsc(sale.getId())).thenReturn(List.of());
+
+        paymentService.delete(9L);
+
+        InOrder order = inOrder(auditLogService, paymentRepository);
+        order.verify(auditLogService).record("CREDIT_SALE", sale.getId(), sale.getReference(), "PAYMENT_DELETE",
+                "Versement de 50000 le %s (CASH)".formatted(LocalDate.now()));
+        order.verify(paymentRepository).delete(payment);
     }
 
     private PaymentRequest request(BigDecimal amount) {
