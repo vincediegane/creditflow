@@ -33,6 +33,7 @@ public record SaleResponse(
         String notes,
         LocalDateTime createdAt,
         String createdBy,
-        String updatedBy
+        String updatedBy,
+        BigDecimal penaltyAmount
 ) {
 }

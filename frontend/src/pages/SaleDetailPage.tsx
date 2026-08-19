@@ -153,6 +153,7 @@ export default function SaleDetailPage() {
                 <Line label="Mensualité" value={formatMoney(sale.monthlyAmount)} />
                 <Line label="Déjà payé" value={formatMoney(sale.amountPaid)} />
                 <Line label="Reste à payer" value={formatMoney(sale.remainingAmount)} />
+                <Line label="Pénalités en cours" value={formatMoney(sale.penaltyAmount)} />
                 <Line label="Début" value={formatDate(sale.startDate)} />
                 <Line label="Fin prévue" value={formatDate(sale.endDate)} />
                 <Line
@@ -196,6 +197,7 @@ export default function SaleDetailPage() {
                       <TableCell align="right">Montant</TableCell>
                       <TableCell align="right">Payé</TableCell>
                       <TableCell align="right">Reste</TableCell>
+                      <TableCell align="right">Pénalité</TableCell>
                       <TableCell>Statut</TableCell>
                       <TableCell align="right">Retard</TableCell>
                     </TableRow>
@@ -208,6 +210,7 @@ export default function SaleDetailPage() {
                         <TableCell align="right">{formatMoney(installment.amount)}</TableCell>
                         <TableCell align="right">{formatMoney(installment.amountPaid)}</TableCell>
                         <TableCell align="right">{formatMoney(installment.remaining)}</TableCell>
+                        <TableCell align="right">{formatMoney(installment.penaltyAmount)}</TableCell>
                         <TableCell>
                           <StatusChip status={installment.displayStatus} kind="installment" />
                         </TableCell>

@@ -29,6 +29,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import PercentIcon from '@mui/icons-material/Percent';
 import PersonIcon from '@mui/icons-material/Person';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
@@ -51,6 +52,7 @@ const NAV_ITEMS = [
   { to: '/rapports', label: 'Rapports', icon: <AssessmentIcon /> },
   { to: '/reprise', label: 'Reprise de données', icon: <UploadFileIcon /> },
   { to: '/utilisateurs', label: 'Utilisateurs', icon: <PersonIcon />, adminOnly: true },
+  { to: '/parametres/penalites', label: 'Pénalités', icon: <PercentIcon />, adminOnly: true },
 ];
 
 export default function AppLayout() {

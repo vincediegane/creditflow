@@ -53,7 +53,7 @@ class SaleControllerSecurityTest extends AbstractWebMvcSecurityTest {
                 BigDecimal.valueOf(100000), BigDecimal.valueOf(20000), BigDecimal.valueOf(80000), 6,
                 BigDecimal.valueOf(13334), BigDecimal.ZERO, BigDecimal.valueOf(80000), LocalDate.now(),
                 LocalDate.now().plusMonths(6), SaleStatus.ACTIVE, false, 0, 0, null, null, 0, null, null,
-                null, null);
+                null, null, BigDecimal.ZERO);
     }
 
     @Test

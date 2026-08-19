@@ -113,6 +113,7 @@ export default function LateCustomersPage() {
                 <TableCell align="right">Jours de retard</TableCell>
                 <TableCell align="right">Échéances</TableCell>
                 <TableCell align="right">Montant en retard</TableCell>
+                <TableCell align="right">Pénalité</TableCell>
                 <TableCell align="right">Reste à payer</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -135,6 +136,7 @@ export default function LateCustomersPage() {
                   <TableCell align="right" sx={{ fontWeight: 600 }}>
                     {formatMoney(row.lateAmount)}
                   </TableCell>
+                  <TableCell align="right">{formatMoney(row.penaltyAmount)}</TableCell>
                   <TableCell align="right">{formatMoney(row.remainingAmount)}</TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
@@ -165,7 +167,7 @@ export default function LateCustomersPage() {
                 </TableRow>
               ))}
               {!rows.length && !query.isLoading && (
-                <EmptyRow colSpan={9} message="Aucun client en retard 🎉" />
+                <EmptyRow colSpan={10} message="Aucun client en retard 🎉" />
               )}
             </TableBody>
           </Table>

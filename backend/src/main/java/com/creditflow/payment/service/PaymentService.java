@@ -14,6 +14,9 @@ import com.creditflow.payment.dto.PaymentResponse;
 import com.creditflow.payment.mapper.PaymentMapper;
 import com.creditflow.payment.repository.PaymentRepository;
 import com.creditflow.payment.repository.PaymentSpecifications;
+import com.creditflow.penalty.domain.PenaltySettings;
+import com.creditflow.penalty.service.PenaltyCalculator;
+import com.creditflow.penalty.service.PenaltySettingsService;
 import com.creditflow.sale.domain.CreditSale;
 import com.creditflow.sale.domain.Installment;
 import com.creditflow.sale.domain.SaleStatus;
@@ -47,6 +50,8 @@ public class PaymentService {
     private final PaymentMapper paymentMapper;
     private final PaymentReceiptGenerator receiptGenerator;
     private final AuditLogService auditLogService;
+    private final PenaltySettingsService penaltySettingsService;
+    private final PenaltyCalculator penaltyCalculator;
 
     @Transactional(readOnly = true)
     public PageResponse<PaymentResponse> search(String search, PaymentMethod method, LocalDate from, LocalDate to,
@@ -109,17 +114,22 @@ public class PaymentService {
         if (!Money.isPositive(amount)) {
             throw new BusinessRuleException("Le montant du versement doit etre superieur a zero");
         }
-        if (amount.compareTo(sale.getRemainingAmount()) > 0) {
-            throw new BusinessRuleException(
-                    "Le montant depasse le reste a payer (%s)".formatted(sale.getRemainingAmount().toPlainString()));
-        }
 
         LocalDate paymentDate = request.paymentDate() == null ? LocalDate.now() : request.paymentDate();
         if (paymentDate.isAfter(LocalDate.now())) {
             throw new BusinessRuleException("La date de paiement ne peut pas etre dans le futur");
         }
 
-        paymentAllocator.allocate(sale.getInstallments(), amount, paymentDate);
+        PenaltySettings settings = penaltySettingsService.current();
+        BigDecimal penaltyDue = penaltyCalculator.totalOutstanding(sale.getInstallments(), settings, paymentDate);
+        BigDecimal payable = sale.getRemainingAmount().add(penaltyDue);
+        if (amount.compareTo(payable) > 0) {
+            throw new BusinessRuleException(
+                    "Le montant depasse le reste a payer, penalites incluses (%s)".formatted(payable.toPlainString()));
+        }
+
+        BigDecimal afterPenalty = paymentAllocator.applyPenalty(sale.getInstallments(), settings, amount, paymentDate);
+        paymentAllocator.allocate(sale.getInstallments(), afterPenalty, paymentDate);
 
         Payment payment = Payment.builder()
                 .sale(sale)
@@ -160,8 +170,12 @@ public class PaymentService {
 
         List<Installment> installments = sale.getInstallments();
         paymentAllocator.reset(installments);
+        PenaltySettings settings = penaltySettingsService.current();
         paymentRepository.findBySaleIdOrderByPaymentDateAscIdAsc(sale.getId())
-                .forEach(p -> paymentAllocator.allocate(installments, p.getAmount(), p.getPaymentDate()));
+                .forEach(p -> {
+                    BigDecimal after = paymentAllocator.applyPenalty(installments, settings, p.getAmount(), p.getPaymentDate());
+                    paymentAllocator.allocate(installments, after, p.getPaymentDate());
+                });
 
         recalculate(sale);
         saleRepository.save(sale);

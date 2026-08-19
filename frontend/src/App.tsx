@@ -12,6 +12,7 @@ import LateCustomersPage from './pages/LateCustomersPage';
 import LoginPage from './pages/LoginPage';
 import NewSalePage from './pages/NewSalePage';
 import PaymentsPage from './pages/PaymentsPage';
+import PenaltySettingsPage from './pages/PenaltySettingsPage';
 import ProductsPage from './pages/ProductsPage';
 import ReportsPage from './pages/ReportsPage';
 import SaleDetailPage from './pages/SaleDetailPage';
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="recherche" element={<SearchPage />} />
           <Route element={<RequireRole role="ADMIN" />}>
             <Route path="utilisateurs" element={<UsersPage />} />
+            <Route path="parametres/penalites" element={<PenaltySettingsPage />} />
           </Route>
         </Route>
       </Route>

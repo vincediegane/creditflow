@@ -10,6 +10,8 @@ import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.service.CustomerService;
 import com.creditflow.payment.mapper.PaymentMapper;
 import com.creditflow.payment.repository.PaymentRepository;
+import com.creditflow.penalty.domain.PenaltySettings;
+import com.creditflow.penalty.service.PenaltySettingsService;
 import com.creditflow.product.domain.Product;
 import com.creditflow.product.service.ProductService;
 import com.creditflow.sale.domain.CreditSale;
@@ -51,41 +53,46 @@ public class CreditSaleService {
     private final SaleMapper saleMapper;
     private final PaymentMapper paymentMapper;
     private final AuditLogService auditLogService;
+    private final PenaltySettingsService penaltySettingsService;
 
     @Transactional(readOnly = true)
     public PageResponse<SaleResponse> search(String search, SaleStatus status, Long customerId, Pageable pageable) {
         LocalDate today = LocalDate.now();
+        PenaltySettings settings = penaltySettingsService.current();
         Page<CreditSale> page = saleRepository.findAll(
                 Specs.combine(
                         SaleSpecifications.matches(search),
                         SaleSpecifications.hasStatus(status),
                         SaleSpecifications.forCustomer(customerId)),
                 pageable);
-        return PageResponse.of(page, sale -> saleMapper.toResponse(sale, sale.getInstallments(), today));
+        return PageResponse.of(page, sale -> saleMapper.toResponse(sale, sale.getInstallments(), today, settings));
     }
 
     @Transactional(readOnly = true)
     public SaleResponse findById(Long id) {
         CreditSale sale = getEntity(id);
-        return saleMapper.toResponse(sale, sale.getInstallments(), LocalDate.now());
+        PenaltySettings settings = penaltySettingsService.current();
+        return saleMapper.toResponse(sale, sale.getInstallments(), LocalDate.now(), settings);
     }
 
     @Transactional(readOnly = true)
     public SaleDetailResponse findDetail(Long id) {
         CreditSale sale = getEntity(id);
         LocalDate today = LocalDate.now();
+        PenaltySettings settings = penaltySettingsService.current();
 
         return new SaleDetailResponse(
-                saleMapper.toResponse(sale, sale.getInstallments(), today),
-                sale.getInstallments().stream().map(i -> saleMapper.toResponse(i, today)).toList(),
+                saleMapper.toResponse(sale, sale.getInstallments(), today, settings),
+                sale.getInstallments().stream().map(i -> saleMapper.toResponse(i, today, settings)).toList(),
                 paymentRepository.findBySale(id).stream().map(paymentMapper::toResponse).toList());
     }
 
     @Transactional(readOnly = true)
     public List<SaleResponse> findByCustomer(Long customerId) {
         LocalDate today = LocalDate.now();
+        PenaltySettings settings = penaltySettingsService.current();
         return saleRepository.findByCustomer(customerId).stream()
-                .map(sale -> saleMapper.toResponse(sale, sale.getInstallments(), today))
+                .map(sale -> saleMapper.toResponse(sale, sale.getInstallments(), today, settings))
                 .toList();
     }
 
@@ -145,6 +152,7 @@ public class CreditSaleService {
                 .dueDate(line.dueDate())
                 .amount(line.amount())
                 .amountPaid(Money.ZERO)
+                .penaltyPaid(Money.ZERO)
                 .status(InstallmentStatus.PENDING)
                 .build()));
 
@@ -159,7 +167,7 @@ public class CreditSaleService {
         log.info("Contrat {} cree pour {} ({} mensualites de {})",
                 saved.getReference(), customer.getFullName(), saved.getInstallmentCount(), saved.getMonthlyAmount());
 
-        return saleMapper.toResponse(saved, saved.getInstallments(), LocalDate.now());
+        return saleMapper.toResponse(saved, saved.getInstallments(), LocalDate.now(), penaltySettingsService.current());
     }
 
     @Transactional
@@ -170,7 +178,8 @@ public class CreditSaleService {
         }
         sale.setStatus(SaleStatus.CANCELLED);
         auditLogService.record("CREDIT_SALE", id, sale.getReference(), "CANCEL", null);
-        return saleMapper.toResponse(saleRepository.save(sale), sale.getInstallments(), LocalDate.now());
+        return saleMapper.toResponse(saleRepository.save(sale), sale.getInstallments(), LocalDate.now(),
+                penaltySettingsService.current());
     }
 
     @Transactional
