@@ -36,6 +36,10 @@ public record SaleResponse(
         LocalDateTime createdAt,
         String createdBy,
         String updatedBy,
-        BigDecimal penaltyAmount
+        BigDecimal penaltyAmount,
+        String guarantorFullName,
+        String guarantorPhone,
+        String guarantorAddress,
+        String guarantorCniNumber
 ) {
 }

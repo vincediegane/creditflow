@@ -11,7 +11,7 @@ public final class SaleSpecifications {
     private SaleSpecifications() {
     }
 
-    /** Recherche sur la reference du contrat, le client, son telephone et le produit. */
+    /** Recherche sur la reference du contrat, le client, son telephone, le produit et le garant. */
     public static Specification<CreditSale> matches(String search) {
         if (!StringUtils.hasText(search)) {
             return null;
@@ -25,7 +25,9 @@ public final class SaleSpecifications {
                             cb.concat(cb.concat(customer.get("firstName"), " "), customer.get("lastName")),
                             search),
                     cb.like(customer.get("phone"), "%" + search.trim() + "%"),
-                    Specs.likeIgnoreCase(cb, product.get("name"), search));
+                    Specs.likeIgnoreCase(cb, product.get("name"), search),
+                    Specs.likeIgnoreCase(cb, cb.coalesce(root.get("guarantorFullName"), ""), search),
+                    cb.like(cb.coalesce(root.get("guarantorPhone"), ""), "%" + search.trim() + "%"));
         };
     }
 
