@@ -3,9 +3,11 @@ package com.creditflow.sale.web;
 import com.creditflow.common.dto.PageResponse;
 import com.creditflow.payment.dto.PaymentResponse;
 import com.creditflow.payment.service.PaymentService;
+import com.creditflow.sale.domain.SaleAttachmentType;
 import com.creditflow.sale.domain.SaleStatus;
 import com.creditflow.sale.dto.CreateSaleRequest;
 import com.creditflow.sale.dto.InstallmentResponse;
+import com.creditflow.sale.dto.SaleAttachmentResponse;
 import com.creditflow.sale.dto.SaleDetailResponse;
 import com.creditflow.sale.dto.SalePreviewRequest;
 import com.creditflow.sale.dto.SalePreviewResponse;
@@ -20,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,8 +32,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.List;
@@ -108,5 +113,20 @@ public class SaleController {
     @PreAuthorize("hasRole('ADMIN')")
     public void delete(@PathVariable Long id) {
         creditSaleService.delete(id);
+    }
+
+    @PostMapping(value = "/{id}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Attacher une piece d'identite ou une signature au contrat")
+    public SaleAttachmentResponse uploadAttachment(@PathVariable Long id,
+                                                    @RequestParam SaleAttachmentType type,
+                                                    @RequestPart("file") MultipartFile file) {
+        return creditSaleService.uploadAttachment(id, type, file);
+    }
+
+    @DeleteMapping("/{id}/attachments/{attachmentId}")
+    @Operation(summary = "Supprimer une piece jointe du contrat")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAttachment(@PathVariable Long id, @PathVariable Long attachmentId) {
+        creditSaleService.deleteAttachment(id, attachmentId);
     }
 }

@@ -8,11 +8,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -51,6 +49,12 @@ public class FileStorageService {
         }
 
         try {
+            byte[] content = file.getBytes();
+            if (!matchesExtension(content, extension)) {
+                throw new BusinessRuleException(
+                        "Le contenu du fichier ne correspond pas a son extension declaree");
+            }
+
             Path directory = root.resolve(folder).normalize();
             if (!directory.startsWith(root)) {
                 throw new BusinessRuleException("Chemin de stockage invalide");
@@ -58,14 +62,34 @@ public class FileStorageService {
             Files.createDirectories(directory);
 
             String filename = UUID.randomUUID() + "." + extension;
-            try (InputStream in = file.getInputStream()) {
-                Files.copy(in, directory.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
-            }
+            Files.write(directory.resolve(filename), content);
             return "%s/%s/%s".formatted(publicPath, folder, filename);
         } catch (IOException ex) {
             log.error("Echec d'enregistrement du fichier", ex);
             throw new BusinessRuleException("Impossible d'enregistrer le fichier");
         }
+    }
+
+    private boolean matchesExtension(byte[] content, String extension) {
+        return switch (extension) {
+            case "jpg", "jpeg" -> matches(content, 0, 0xFF, 0xD8, 0xFF);
+            case "png" -> matches(content, 0, 0x89, 0x50, 0x4E, 0x47);
+            case "webp" -> matches(content, 0, 0x52, 0x49, 0x46, 0x46)
+                    && matches(content, 8, 0x57, 0x45, 0x42, 0x50);
+            default -> false;
+        };
+    }
+
+    private boolean matches(byte[] content, int offset, int... expected) {
+        if (content.length < offset + expected.length) {
+            return false;
+        }
+        for (int i = 0; i < expected.length; i++) {
+            if ((content[offset + i] & 0xFF) != expected[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public void deleteByPublicUrl(String publicUrl) {

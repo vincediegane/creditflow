@@ -2,8 +2,10 @@ package com.creditflow.sale.web;
 
 import com.creditflow.config.AbstractWebMvcSecurityTest;
 import com.creditflow.payment.service.PaymentService;
+import com.creditflow.sale.domain.SaleAttachmentType;
 import com.creditflow.sale.domain.SaleStatus;
 import com.creditflow.sale.dto.CreateSaleRequest;
+import com.creditflow.sale.dto.SaleAttachmentResponse;
 import com.creditflow.sale.dto.SaleResponse;
 import com.creditflow.sale.service.CreditSaleService;
 import com.creditflow.sale.service.InstallmentService;
@@ -12,16 +14,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -91,5 +96,25 @@ class SaleControllerSecurityTest extends AbstractWebMvcSecurityTest {
     @WithMockUser(roles = "ADMIN")
     void adminCanDeleteSale() throws Exception {
         mockMvc.perform(delete("/api/sales/1")).andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(roles = "SELLER")
+    void sellerCanUploadAttachment() throws Exception {
+        when(creditSaleService.uploadAttachment(anyLong(), any(), any())).thenReturn(
+                new SaleAttachmentResponse(1L, 1L, SaleAttachmentType.ID_DOCUMENT, "/uploads/sales/1/a.png",
+                        "cni.png", "image/png", LocalDateTime.now(), "vendeur"));
+        MockMultipartFile file = new MockMultipartFile("file", "cni.png", "image/png", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/sales/1/attachments")
+                        .file(file)
+                        .param("type", "ID_DOCUMENT"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "SELLER")
+    void sellerCanDeleteAttachment() throws Exception {
+        mockMvc.perform(delete("/api/sales/1/attachments/2")).andExpect(status().isNoContent());
     }
 }
