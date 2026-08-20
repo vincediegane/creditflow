@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -21,7 +21,9 @@ import {
   Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import BadgeIcon from '@mui/icons-material/Badge';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
+import DrawIcon from '@mui/icons-material/Draw';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import ReceiptIcon from '@mui/icons-material/ReceiptLong';
 
@@ -34,8 +36,16 @@ import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
 import PaymentDialog from '../components/PaymentDialog';
 import ReminderDialog from '../components/ReminderDialog';
+import SignaturePad from '../components/SignaturePad';
 import StatusChip from '../components/StatusChip';
+import type { SaleAttachment } from '../types';
 import { PAYMENT_METHOD_LABELS, formatDate, formatMoney } from '../utils/format';
+
+const ATTACHMENT_TYPE_LABELS: Record<SaleAttachment['type'], string> = {
+  ID_DOCUMENT: "Pièce d'identité",
+  SIGNATURE: 'Signature',
+  OTHER: 'Autre',
+};
 
 export default function SaleDetailPage() {
   const { id } = useParams();
@@ -48,7 +58,10 @@ export default function SaleDetailPage() {
   const [reminderOpen, setReminderOpen] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<number | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [signatureOpen, setSignatureOpen] = useState(false);
+  const [attachmentToDelete, setAttachmentToDelete] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const idDocumentInput = useRef<HTMLInputElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sale-detail', saleId],
@@ -85,6 +98,28 @@ export default function SaleDetailPage() {
     },
   });
 
+  const uploadAttachmentMutation = useMutation({
+    mutationFn: ({ type, file }: { type: SaleAttachment['type']; file: File }) =>
+      salesApi.uploadAttachment(saleId, type, file),
+    onSuccess: () => {
+      refresh();
+      setSignatureOpen(false);
+    },
+    onError: (err) => setError(errorMessage(err, "La pièce jointe n'a pas pu être enregistrée")),
+  });
+
+  const deleteAttachmentMutation = useMutation({
+    mutationFn: (attachmentId: number) => salesApi.removeAttachment(saleId, attachmentId),
+    onSuccess: () => {
+      refresh();
+      setAttachmentToDelete(null);
+    },
+    onError: (err) => {
+      setError(errorMessage(err, "La pièce jointe n'a pas pu être supprimée"));
+      setAttachmentToDelete(null);
+    },
+  });
+
   if (isLoading) {
     return <LinearProgress />;
   }
@@ -92,7 +127,7 @@ export default function SaleDetailPage() {
     return <Alert severity="error">Contrat introuvable.</Alert>;
   }
 
-  const { sale, installments, payments } = data;
+  const { sale, installments, payments, attachments } = data;
   const progress = sale.financedAmount > 0 ? (sale.amountPaid / sale.financedAmount) * 100 : 0;
 
   return (
@@ -292,6 +327,95 @@ export default function SaleDetailPage() {
             </CardContent>
           </Card>
 
+          <Card variant="outlined" sx={{ mt: 2.5 }}>
+            <CardContent>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                justifyContent="space-between"
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                spacing={1.5}
+                mb={2}
+              >
+                <Typography variant="h6">Pièces jointes</Typography>
+                <Stack direction="row" spacing={1.5}>
+                  <input
+                    ref={idDocumentInput}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    hidden
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        uploadAttachmentMutation.mutate({ type: 'ID_DOCUMENT', file });
+                      }
+                      event.target.value = '';
+                    }}
+                  />
+                  <Button
+                    size="small"
+                    startIcon={<BadgeIcon />}
+                    onClick={() => idDocumentInput.current?.click()}
+                    disabled={uploadAttachmentMutation.isPending}
+                  >
+                    Ajouter une pièce d'identité
+                  </Button>
+                  <Button
+                    size="small"
+                    startIcon={<DrawIcon />}
+                    onClick={() => setSignatureOpen(true)}
+                    disabled={uploadAttachmentMutation.isPending}
+                  >
+                    Faire signer le client
+                  </Button>
+                </Stack>
+              </Stack>
+
+              <Grid container spacing={1.5}>
+                {attachments.map((attachment) => (
+                  <Grid item xs={6} sm={4} md={3} key={attachment.id}>
+                    <Box
+                      sx={{
+                        position: 'relative',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <Box
+                        component="img"
+                        src={attachment.fileUrl}
+                        alt={ATTACHMENT_TYPE_LABELS[attachment.type]}
+                        sx={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }}
+                      />
+                      <Stack
+                        direction="row"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        sx={{ px: 1, py: 0.5 }}
+                      >
+                        <Typography variant="caption" color="text.secondary">
+                          {ATTACHMENT_TYPE_LABELS[attachment.type]}
+                        </Typography>
+                        <IconButton size="small" onClick={() => setAttachmentToDelete(attachment.id)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    </Box>
+                  </Grid>
+                ))}
+                {!attachments.length && (
+                  <Grid item xs={12}>
+                    <Typography variant="body2" color="text.secondary">
+                      Aucune pièce jointe pour ce contrat.
+                    </Typography>
+                  </Grid>
+                )}
+              </Grid>
+            </CardContent>
+          </Card>
+
           <AuditHistoryCard entityType="CREDIT_SALE" entityId={sale.id} />
         </Grid>
       </Grid>
@@ -326,6 +450,20 @@ export default function SaleDetailPage() {
         loading={cancelSaleMutation.isPending}
         onConfirm={() => cancelSaleMutation.mutate()}
         onClose={() => setCancelOpen(false)}
+      />
+      <SignaturePad
+        open={signatureOpen}
+        onClose={() => setSignatureOpen(false)}
+        onValidate={(file) => uploadAttachmentMutation.mutate({ type: 'SIGNATURE', file })}
+      />
+      <ConfirmDialog
+        open={attachmentToDelete !== null}
+        title="Supprimer la pièce jointe"
+        message="Cette pièce jointe sera définitivement supprimée."
+        confirmLabel="Supprimer"
+        loading={deleteAttachmentMutation.isPending}
+        onConfirm={() => attachmentToDelete && deleteAttachmentMutation.mutate(attachmentToDelete)}
+        onClose={() => setAttachmentToDelete(null)}
       />
     </Box>
   );
