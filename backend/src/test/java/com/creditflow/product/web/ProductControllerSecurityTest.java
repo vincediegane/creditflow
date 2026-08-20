@@ -15,11 +15,13 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -96,5 +98,21 @@ class ProductControllerSecurityTest extends AbstractWebMvcSecurityTest {
     @WithMockUser(roles = "ADMIN")
     void adminCanDeleteProduct() throws Exception {
         mockMvc.perform(delete("/api/products/1")).andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(roles = "SELLER")
+    void sellerCanReadStockMovements() throws Exception {
+        when(productService.stockMovements(1L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/products/1/stock-movements")).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminCanReadStockMovements() throws Exception {
+        when(productService.stockMovements(1L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/products/1/stock-movements")).andExpect(status().isOk());
     }
 }
