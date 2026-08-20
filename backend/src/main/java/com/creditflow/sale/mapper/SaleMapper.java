@@ -6,7 +6,9 @@ import com.creditflow.sale.domain.CreditSale;
 import com.creditflow.sale.domain.Installment;
 import com.creditflow.sale.domain.InstallmentStatus;
 import com.creditflow.sale.domain.SaleStatus;
+import com.creditflow.sale.domain.SaleAttachment;
 import com.creditflow.sale.dto.InstallmentResponse;
+import com.creditflow.sale.dto.SaleAttachmentResponse;
 import com.creditflow.sale.dto.SaleResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -98,6 +100,18 @@ public class SaleMapper {
                 installment.daysLate(today),
                 installment.getPaidAt(),
                 penaltyAmount);
+    }
+
+    public SaleAttachmentResponse toResponse(SaleAttachment attachment) {
+        return new SaleAttachmentResponse(
+                attachment.getId(),
+                attachment.getSale().getId(),
+                attachment.getType(),
+                attachment.getFileUrl(),
+                attachment.getOriginalFilename(),
+                attachment.getContentType(),
+                attachment.getCreatedAt(),
+                attachment.getCreatedBy());
     }
 
     private String displayStatus(Installment installment, boolean late) {
