@@ -72,19 +72,15 @@ public class FileStorageService {
 
     private boolean matchesExtension(byte[] content, String extension) {
         return switch (extension) {
-            case "jpg", "jpeg" -> startsWith(content, 0xFF, 0xD8, 0xFF);
-            case "png" -> startsWith(content, 0x89, 0x50, 0x4E, 0x47);
-            case "webp" -> startsWith(content, 0x52, 0x49, 0x46, 0x46)
-                    && startsWith(content, 8, 0x57, 0x45, 0x42, 0x50);
+            case "jpg", "jpeg" -> matches(content, 0, 0xFF, 0xD8, 0xFF);
+            case "png" -> matches(content, 0, 0x89, 0x50, 0x4E, 0x47);
+            case "webp" -> matches(content, 0, 0x52, 0x49, 0x46, 0x46)
+                    && matches(content, 8, 0x57, 0x45, 0x42, 0x50);
             default -> false;
         };
     }
 
-    private boolean startsWith(byte[] content, int... expected) {
-        return startsWith(content, 0, expected);
-    }
-
-    private boolean startsWith(byte[] content, int offset, int... expected) {
+    private boolean matches(byte[] content, int offset, int... expected) {
         if (content.length < offset + expected.length) {
             return false;
         }
