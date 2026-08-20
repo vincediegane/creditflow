@@ -29,6 +29,8 @@ import type {
   ReportData,
   ReportType,
   Sale,
+  SaleAttachment,
+  SaleAttachmentType,
   SaleDetail,
   SalePreview,
   SaleStatus,
@@ -181,6 +183,18 @@ export const salesApi = {
   create: (payload: CreateSalePayload) => api.post<Sale>('/sales', payload).then((r) => r.data),
   cancel: (id: number) => api.post<Sale>(`/sales/${id}/cancel`).then((r) => r.data),
   remove: (id: number) => api.delete(`/sales/${id}`).then(() => undefined),
+  uploadAttachment: (saleId: number, type: SaleAttachmentType, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api
+      .post<SaleAttachment>(`/sales/${saleId}/attachments`, form, {
+        params: { type },
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
+  removeAttachment: (saleId: number, attachmentId: number) =>
+    api.delete(`/sales/${saleId}/attachments/${attachmentId}`).then(() => undefined),
 };
 
 /* ------------------------------ Echeances --------------------------- */

@@ -316,10 +316,24 @@ export interface PaymentPayload {
   notes?: string;
 }
 
+export type SaleAttachmentType = 'ID_DOCUMENT' | 'SIGNATURE' | 'OTHER';
+
+export interface SaleAttachment {
+  id: number;
+  saleId: number;
+  type: SaleAttachmentType;
+  fileUrl: string;
+  originalFilename?: string;
+  contentType?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
 export interface SaleDetail {
   sale: Sale;
   installments: Installment[];
   payments: Payment[];
+  attachments: SaleAttachment[];
 }
 
 export interface CustomerProfile {
