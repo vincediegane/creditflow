@@ -13,6 +13,12 @@ import com.creditflow.penalty.domain.PenaltyRateType;
 import com.creditflow.penalty.domain.PenaltySettings;
 import com.creditflow.penalty.service.PenaltySettingsService;
 import com.creditflow.product.domain.Product;
+import com.creditflow.product.domain.ProductStatus;
+import com.creditflow.product.domain.StockMovement;
+import com.creditflow.product.domain.StockMovementType;
+import com.creditflow.product.mapper.ProductMapper;
+import com.creditflow.product.repository.ProductRepository;
+import com.creditflow.product.repository.StockMovementRepository;
 import com.creditflow.product.service.ProductService;
 import com.creditflow.sale.domain.CreditSale;
 import com.creditflow.sale.domain.SaleAttachment;
@@ -216,6 +222,50 @@ class CreditSaleServiceTest {
         ArgumentCaptor<CreditSale> captor = ArgumentCaptor.forClass(CreditSale.class);
         verify(saleRepository).saveAndFlush(captor.capture());
         return captor.getValue();
+    }
+
+    @Test
+    @DisplayName("trace un mouvement de stock OUT lors de la creation d'une vente")
+    void create_recordsOutStockMovementForSoldProduct() {
+        ProductRepository productRepository = org.mockito.Mockito.mock(ProductRepository.class);
+        ProductMapper productMapper = org.mockito.Mockito.mock(ProductMapper.class);
+        StockMovementRepository stockMovementRepository = org.mockito.Mockito.mock(StockMovementRepository.class);
+        ProductService realProductService =
+                new ProductService(productRepository, productMapper, auditLogService, stockMovementRepository);
+
+        Product product = Product.builder().id(1L).name("iPhone 13").stock(3).status(ProductStatus.ACTIVE).build();
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productRepository.save(any(Product.class))).thenAnswer(i -> i.getArgument(0));
+
+        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").build();
+        when(customerService.getEntity(1L)).thenReturn(customer);
+
+        when(scheduleGenerator.interestAmount(any(), any(), any())).thenReturn(BigDecimal.ZERO);
+        InstallmentScheduleGenerator.Schedule schedule = new InstallmentScheduleGenerator.Schedule(
+                new BigDecimal("50000"), LocalDate.now().plusMonths(3),
+                List.of(new InstallmentScheduleGenerator.ScheduleLine(1, LocalDate.now(), new BigDecimal("150000"))));
+        when(scheduleGenerator.generate(any(), anyInt(), any())).thenReturn(schedule);
+
+        when(saleRepository.saveAndFlush(any(CreditSale.class))).thenAnswer(i -> {
+            CreditSale s = i.getArgument(0);
+            s.setId(1L);
+            return s;
+        });
+        when(saleRepository.save(any(CreditSale.class))).thenAnswer(i -> i.getArgument(0));
+
+        CreditSaleService service = new CreditSaleService(saleRepository, installmentRepository, paymentRepository,
+                saleAttachmentRepository, customerService, realProductService, scheduleGenerator, saleMapper,
+                paymentMapper, auditLogService, penaltySettingsService, fileStorageService);
+
+        CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, 3, LocalDate.now(), null, null, null, null, null);
+
+        service.create(request);
+
+        ArgumentCaptor<StockMovement> captor = ArgumentCaptor.forClass(StockMovement.class);
+        verify(stockMovementRepository).save(captor.capture());
+        assertThat(captor.getValue().getType()).isEqualTo(StockMovementType.OUT);
+        assertThat(captor.getValue().getProduct().getId()).isEqualTo(1L);
     }
 
     @Test

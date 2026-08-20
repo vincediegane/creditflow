@@ -144,6 +144,69 @@ export interface ProductPayload {
   status: ProductStatus;
 }
 
+export type StockMovementType = 'IN' | 'OUT';
+export type StockSourceType = 'PURCHASE_RECEPTION' | 'SALE';
+
+export interface StockMovement {
+  id: number;
+  productId: number;
+  type: StockMovementType;
+  quantity: number;
+  sourceType: StockSourceType;
+  sourceId?: number;
+  occurredAt: string;
+  createdBy?: string;
+}
+
+export interface Supplier {
+  id: number;
+  name: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+  active: boolean;
+  createdAt: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface SupplierPayload {
+  name: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+  active?: boolean;
+}
+
+export interface StockReceptionLine {
+  id: number;
+  productId: number;
+  productName: string;
+  quantity: number;
+}
+
+export interface StockReception {
+  id: number;
+  supplierId: number;
+  supplierName: string;
+  receivedAt: string;
+  notes?: string;
+  lines: StockReceptionLine[];
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface StockReceptionPayload {
+  supplierId: number;
+  receivedAt: string;
+  notes?: string;
+  lines: { productId: number; quantity: number }[];
+}
+
 export type SaleStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
 
 export interface Sale {

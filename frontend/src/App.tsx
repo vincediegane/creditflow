@@ -18,6 +18,8 @@ import ReportsPage from './pages/ReportsPage';
 import SaleDetailPage from './pages/SaleDetailPage';
 import SalesPage from './pages/SalesPage';
 import SearchPage from './pages/SearchPage';
+import StockReceptionsPage from './pages/StockReceptionsPage';
+import SuppliersPage from './pages/SuppliersPage';
 import UsersPage from './pages/UsersPage';
 
 export default function App() {
@@ -31,6 +33,8 @@ export default function App() {
           <Route path="clients" element={<CustomersPage />} />
           <Route path="clients/:id" element={<CustomerDetailPage />} />
           <Route path="produits" element={<ProductsPage />} />
+          <Route path="fournisseurs" element={<SuppliersPage />} />
+          <Route path="achats" element={<StockReceptionsPage />} />
           <Route path="ventes" element={<SalesPage />} />
           <Route path="ventes/nouvelle" element={<NewSalePage />} />
           <Route path="ventes/:id" element={<SaleDetailPage />} />
