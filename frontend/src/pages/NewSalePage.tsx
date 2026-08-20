@@ -38,6 +38,10 @@ interface FormValues {
   installmentCount: number | '';
   startDate: string;
   notes: string;
+  guarantorFullName: string;
+  guarantorPhone: string;
+  guarantorAddress: string;
+  guarantorCniNumber: string;
 }
 
 export default function NewSalePage() {
@@ -59,6 +63,10 @@ export default function NewSalePage() {
       installmentCount: 6,
       startDate: today(),
       notes: '',
+      guarantorFullName: '',
+      guarantorPhone: '',
+      guarantorAddress: '',
+      guarantorCniNumber: '',
     },
   });
 
@@ -119,6 +127,14 @@ export default function NewSalePage() {
       setError('Sélectionnez un client et un produit');
       return;
     }
+
+    const guarantorName = form.guarantorFullName.trim();
+    const guarantorPhone = form.guarantorPhone.trim();
+    if (Boolean(guarantorName) !== Boolean(guarantorPhone)) {
+      setError('Le nom et le téléphone du garant doivent être renseignés ensemble');
+      return;
+    }
+
     createMutation.mutate({
       customerId: Number(form.customerId),
       productId: Number(form.productId),
@@ -129,6 +145,10 @@ export default function NewSalePage() {
       installmentCount: Number(form.installmentCount),
       startDate: form.startDate,
       notes: form.notes || undefined,
+      guarantorFullName: guarantorName || undefined,
+      guarantorPhone: guarantorPhone || undefined,
+      guarantorAddress: form.guarantorAddress.trim() || undefined,
+      guarantorCniNumber: form.guarantorCniNumber.trim() || undefined,
     });
   });
 
@@ -255,6 +275,44 @@ export default function NewSalePage() {
                       label="Observations"
                       {...register('notes')}
                     />
+                  </Grid>
+                </Grid>
+
+                <Divider />
+
+                <Typography variant="subtitle2">Garant (optionnel)</Typography>
+
+                <Autocomplete
+                  options={customersQuery.data ?? []}
+                  getOptionLabel={(option) => `${option.fullName} — ${option.phone}`}
+                  onChange={(_, value) => {
+                    if (value) {
+                      setValue('guarantorFullName', value.fullName);
+                      setValue('guarantorPhone', value.phone);
+                      setValue('guarantorAddress', value.address ?? '');
+                    }
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Choisir un client comme garant (optionnel)"
+                      placeholder="Nom ou téléphone"
+                    />
+                  )}
+                />
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField fullWidth label="Nom du garant" {...register('guarantorFullName')} />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField fullWidth label="Téléphone du garant" {...register('guarantorPhone')} />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField fullWidth label="Adresse du garant" {...register('guarantorAddress')} />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField fullWidth label="N° CNI du garant" {...register('guarantorCniNumber')} />
                   </Grid>
                 </Grid>
 

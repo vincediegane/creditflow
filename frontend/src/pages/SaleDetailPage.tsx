@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   CardContent,
+  Divider,
   Grid,
   IconButton,
   LinearProgress,
@@ -173,6 +174,16 @@ export default function SaleDetailPage() {
                     label="Retard"
                     value={`${sale.lateInstallments} échéance(s) • ${sale.daysLate} jours`}
                   />
+                )}
+                {sale.guarantorFullName && (
+                  <>
+                    <Divider sx={{ my: 1 }} />
+                    <Typography variant="subtitle2">Garant</Typography>
+                    <Line label="Nom" value={sale.guarantorFullName} />
+                    {sale.guarantorPhone && <Line label="Téléphone" value={sale.guarantorPhone} />}
+                    {sale.guarantorAddress && <Line label="Adresse" value={sale.guarantorAddress} />}
+                    {sale.guarantorCniNumber && <Line label="N° CNI" value={sale.guarantorCniNumber} />}
+                  </>
                 )}
               </Stack>
 
