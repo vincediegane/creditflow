@@ -72,7 +72,11 @@ public class SaleMapper {
                 sale.getCreatedAt(),
                 sale.getCreatedBy(),
                 sale.getUpdatedBy(),
-                penaltyAmount);
+                penaltyAmount,
+                sale.getGuarantorFullName(),
+                sale.getGuarantorPhone(),
+                sale.getGuarantorAddress(),
+                sale.getGuarantorCniNumber());
     }
 
     public InstallmentResponse toResponse(Installment installment, LocalDate today, PenaltySettings settings) {

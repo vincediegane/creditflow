@@ -240,6 +240,10 @@ export interface Sale {
   createdBy?: string;
   updatedBy?: string;
   penaltyAmount: number;
+  guarantorFullName?: string;
+  guarantorPhone?: string;
+  guarantorAddress?: string;
+  guarantorCniNumber?: string;
 }
 
 export interface CreateSalePayload {
@@ -252,6 +256,10 @@ export interface CreateSalePayload {
   installmentCount: number;
   startDate: string;
   notes?: string;
+  guarantorFullName?: string;
+  guarantorPhone?: string;
+  guarantorAddress?: string;
+  guarantorCniNumber?: string;
 }
 
 export interface SalePreview {

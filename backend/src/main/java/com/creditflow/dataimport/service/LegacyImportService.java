@@ -130,7 +130,7 @@ public class LegacyImportService {
                     customer.getId(), product.getId(), row.totalPrice(), row.downPayment(),
                     null, null,
                     row.installmentCount(), row.startDate(),
-                    "Contrat repris depuis l'ancien suivi papier"));
+                    "Contrat repris depuis l'ancien suivi papier", null, null, null, null));
 
             if (Money.isPositive(row.alreadyPaid())) {
                 LocalDate paymentDate = row.startDate().isAfter(LocalDate.now())

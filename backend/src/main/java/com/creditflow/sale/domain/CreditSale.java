@@ -96,6 +96,18 @@ public class CreditSale extends Auditable {
     @Column(columnDefinition = "text")
     private String notes;
 
+    @Column(name = "guarantor_full_name", length = 160)
+    private String guarantorFullName;
+
+    @Column(name = "guarantor_phone", length = 30)
+    private String guarantorPhone;
+
+    @Column(name = "guarantor_address", length = 255)
+    private String guarantorAddress;
+
+    @Column(name = "guarantor_cni_number", length = 50)
+    private String guarantorCniNumber;
+
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("number ASC")
     @Builder.Default

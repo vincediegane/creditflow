@@ -38,6 +38,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
@@ -170,6 +171,10 @@ public class CreditSaleService {
                 .endDate(schedule.endDate())
                 .status(SaleStatus.ACTIVE)
                 .notes(request.notes())
+                .guarantorFullName(blankToNull(request.guarantorFullName()))
+                .guarantorPhone(blankToNull(request.guarantorPhone()))
+                .guarantorAddress(blankToNull(request.guarantorAddress()))
+                .guarantorCniNumber(blankToNull(request.guarantorCniNumber()))
                 .build();
 
         schedule.lines().forEach(line -> sale.addInstallment(Installment.builder()
@@ -270,5 +275,9 @@ public class CreditSaleService {
 
     private String buildReference(CreditSale sale) {
         return "VC-%d-%05d".formatted(sale.getStartDate().getYear(), sale.getId());
+    }
+
+    private String blankToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 }

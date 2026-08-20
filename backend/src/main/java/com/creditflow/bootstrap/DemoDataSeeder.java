@@ -151,7 +151,7 @@ public class DemoDataSeeder {
 
             sales.add(creditSaleService.create(new CreateSaleRequest(
                     customer.id(), product.id(), price, downPayment, null, null, months, startDate,
-                    "Contrat de demonstration")));
+                    "Contrat de demonstration", null, null, null, null)));
         }
         return sales;
     }

@@ -166,6 +166,65 @@ class CreditSaleServiceTest {
     }
 
     @Test
+    @DisplayName("reprend les champs garant du CreateSaleRequest vers l'entite sauvegardee")
+    void createCapturesGuarantorFields() {
+        stubCreationDependencies();
+
+        CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
+                null, null, 3, LocalDate.now(), null,
+                "Moussa Kane", "770001122", "Dakar, Sicap Liberte", "1234567890123");
+
+        creditSaleService.create(request);
+
+        CreditSale saved = capturedSale();
+        assertThat(saved.getGuarantorFullName()).isEqualTo("Moussa Kane");
+        assertThat(saved.getGuarantorPhone()).isEqualTo("770001122");
+        assertThat(saved.getGuarantorAddress()).isEqualTo("Dakar, Sicap Liberte");
+        assertThat(saved.getGuarantorCniNumber()).isEqualTo("1234567890123");
+    }
+
+    @Test
+    @DisplayName("cree un contrat sans garant (non-regression)")
+    void createWithoutGuarantorLeavesFieldsNull() {
+        stubCreationDependencies();
+
+        CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
+                null, null, 3, LocalDate.now(), null,
+                null, null, null, null);
+
+        creditSaleService.create(request);
+
+        CreditSale saved = capturedSale();
+        assertThat(saved.getGuarantorFullName()).isNull();
+        assertThat(saved.getGuarantorPhone()).isNull();
+        assertThat(saved.getGuarantorAddress()).isNull();
+        assertThat(saved.getGuarantorCniNumber()).isNull();
+    }
+
+    private void stubCreationDependencies() {
+        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").build();
+        Product product = Product.builder().id(1L).name("iPhone 13").stock(0).build();
+        when(customerService.getEntity(1L)).thenReturn(customer);
+        when(productService.getEntity(1L)).thenReturn(product);
+        when(scheduleGenerator.interestAmount(any(), any(), any())).thenReturn(BigDecimal.ZERO);
+        when(scheduleGenerator.generate(any(), anyInt(), any())).thenReturn(
+                new InstallmentScheduleGenerator.Schedule(
+                        new BigDecimal("50000"), LocalDate.now().plusMonths(3), List.of()));
+        when(saleRepository.saveAndFlush(any(CreditSale.class))).thenAnswer(i -> {
+            CreditSale s = i.getArgument(0);
+            s.setId(2L);
+            return s;
+        });
+        when(saleRepository.save(any(CreditSale.class))).thenAnswer(i -> i.getArgument(0));
+    }
+
+    private CreditSale capturedSale() {
+        ArgumentCaptor<CreditSale> captor = ArgumentCaptor.forClass(CreditSale.class);
+        verify(saleRepository).saveAndFlush(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
     @DisplayName("trace un mouvement de stock OUT lors de la creation d'une vente")
     void create_recordsOutStockMovementForSoldProduct() {
         ProductRepository productRepository = org.mockito.Mockito.mock(ProductRepository.class);
@@ -199,7 +258,7 @@ class CreditSaleServiceTest {
                 paymentMapper, auditLogService, penaltySettingsService, fileStorageService);
 
         CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
-                BigDecimal.ZERO, BigDecimal.ZERO, 3, LocalDate.now(), null);
+                BigDecimal.ZERO, BigDecimal.ZERO, 3, LocalDate.now(), null, null, null, null, null);
 
         service.create(request);
 

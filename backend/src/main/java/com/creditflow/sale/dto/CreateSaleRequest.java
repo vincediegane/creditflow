@@ -1,10 +1,14 @@
 package com.creditflow.sale.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -38,6 +42,26 @@ public record CreateSaleRequest(
         @NotNull(message = "La date de debut est obligatoire")
         LocalDate startDate,
 
-        String notes
+        String notes,
+
+        @Size(max = 160, message = "Le nom du garant est trop long")
+        String guarantorFullName,
+
+        @Pattern(regexp = "^[0-9+\\-\\s()]{6,30}$", message = "Numero de telephone du garant invalide")
+        @Size(max = 30)
+        String guarantorPhone,
+
+        @Size(max = 255)
+        String guarantorAddress,
+
+        @Size(max = 50)
+        String guarantorCniNumber
 ) {
+
+    @AssertTrue(message = "Le nom et le telephone du garant doivent etre renseignes ensemble")
+    public boolean isGuarantorConsistent() {
+        boolean hasName = StringUtils.hasText(guarantorFullName);
+        boolean hasPhone = StringUtils.hasText(guarantorPhone);
+        return hasName == hasPhone;
+    }
 }
