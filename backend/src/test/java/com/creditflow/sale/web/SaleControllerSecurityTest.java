@@ -45,7 +45,7 @@ class SaleControllerSecurityTest extends AbstractWebMvcSecurityTest {
 
     private CreateSaleRequest createRequest() {
         return new CreateSaleRequest(1L, 1L, BigDecimal.valueOf(100000), BigDecimal.valueOf(20000),
-                null, null, 6, LocalDate.now(), null);
+                null, null, 6, LocalDate.now(), null, null, null, null, null);
     }
 
     private SaleResponse response() {
@@ -53,7 +53,7 @@ class SaleControllerSecurityTest extends AbstractWebMvcSecurityTest {
                 BigDecimal.valueOf(100000), null, BigDecimal.ZERO, BigDecimal.valueOf(20000), BigDecimal.valueOf(80000), 6,
                 BigDecimal.valueOf(13334), BigDecimal.ZERO, BigDecimal.valueOf(80000), LocalDate.now(),
                 LocalDate.now().plusMonths(6), SaleStatus.ACTIVE, false, 0, 0, null, null, 0, null, null,
-                null, null, BigDecimal.ZERO);
+                null, null, BigDecimal.ZERO, null, null, null, null);
     }
 
     @Test
