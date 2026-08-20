@@ -33,6 +33,11 @@ import type {
   SalePreview,
   SaleStatus,
   CreateSalePayload,
+  StockMovement,
+  StockReception,
+  StockReceptionPayload,
+  Supplier,
+  SupplierPayload,
   User,
   UserAccount,
 } from '../types';
@@ -131,6 +136,31 @@ export const productsApi = {
   update: (id: number, payload: ProductPayload) =>
     api.put<Product>(`/products/${id}`, payload).then((r) => r.data),
   remove: (id: number) => api.delete(`/products/${id}`).then(() => undefined),
+  stockMovements: (id: number) =>
+    api.get<StockMovement[]>(`/products/${id}/stock-movements`).then((r) => r.data),
+};
+
+/* ----------------------------- Fournisseurs -------------------------- */
+
+export const suppliersApi = {
+  list: (params: PageParams & { search?: string }) =>
+    api.get<PageResponse<Supplier>>('/suppliers', { params }).then((r) => r.data),
+  select: () => api.get<Supplier[]>('/suppliers/select').then((r) => r.data),
+  get: (id: number) => api.get<Supplier>(`/suppliers/${id}`).then((r) => r.data),
+  create: (payload: SupplierPayload) => api.post<Supplier>('/suppliers', payload).then((r) => r.data),
+  update: (id: number, payload: SupplierPayload) =>
+    api.put<Supplier>(`/suppliers/${id}`, payload).then((r) => r.data),
+  remove: (id: number) => api.delete(`/suppliers/${id}`).then(() => undefined),
+};
+
+/* -------------------------- Réceptions de stock ------------------------ */
+
+export const stockReceptionsApi = {
+  list: (params: PageParams & { supplierId?: number }) =>
+    api.get<PageResponse<StockReception>>('/stock-receptions', { params }).then((r) => r.data),
+  get: (id: number) => api.get<StockReception>(`/stock-receptions/${id}`).then((r) => r.data),
+  create: (payload: StockReceptionPayload) =>
+    api.post<StockReception>('/stock-receptions', payload).then((r) => r.data),
 };
 
 /* ------------------------------- Ventes ----------------------------- */
