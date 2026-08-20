@@ -101,6 +101,10 @@ public class CreditSale extends Auditable {
     @Builder.Default
     private List<Installment> installments = new ArrayList<>();
 
+    @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<SaleAttachment> attachments = new ArrayList<>();
+
     public void addInstallment(Installment installment) {
         installment.setSale(this);
         installments.add(installment);

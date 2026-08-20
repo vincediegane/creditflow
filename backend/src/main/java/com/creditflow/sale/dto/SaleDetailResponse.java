@@ -7,6 +7,7 @@ import java.util.List;
 public record SaleDetailResponse(
         SaleResponse sale,
         List<InstallmentResponse> installments,
-        List<PaymentResponse> payments
+        List<PaymentResponse> payments,
+        List<SaleAttachmentResponse> attachments
 ) {
 }

@@ -5,6 +5,7 @@ import com.creditflow.common.dto.PageResponse;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.repository.Specs;
+import com.creditflow.common.storage.FileStorageService;
 import com.creditflow.common.util.Money;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.service.CustomerService;
@@ -17,8 +18,11 @@ import com.creditflow.product.service.ProductService;
 import com.creditflow.sale.domain.CreditSale;
 import com.creditflow.sale.domain.Installment;
 import com.creditflow.sale.domain.InstallmentStatus;
+import com.creditflow.sale.domain.SaleAttachment;
+import com.creditflow.sale.domain.SaleAttachmentType;
 import com.creditflow.sale.domain.SaleStatus;
 import com.creditflow.sale.dto.CreateSaleRequest;
+import com.creditflow.sale.dto.SaleAttachmentResponse;
 import com.creditflow.sale.dto.SaleDetailResponse;
 import com.creditflow.sale.dto.SalePreviewRequest;
 import com.creditflow.sale.dto.SalePreviewResponse;
@@ -26,6 +30,7 @@ import com.creditflow.sale.dto.SaleResponse;
 import com.creditflow.sale.mapper.SaleMapper;
 import com.creditflow.sale.repository.CreditSaleRepository;
 import com.creditflow.sale.repository.InstallmentRepository;
+import com.creditflow.sale.repository.SaleAttachmentRepository;
 import com.creditflow.sale.repository.SaleSpecifications;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +38,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -47,6 +53,7 @@ public class CreditSaleService {
     private final CreditSaleRepository saleRepository;
     private final InstallmentRepository installmentRepository;
     private final PaymentRepository paymentRepository;
+    private final SaleAttachmentRepository saleAttachmentRepository;
     private final CustomerService customerService;
     private final ProductService productService;
     private final InstallmentScheduleGenerator scheduleGenerator;
@@ -54,6 +61,7 @@ public class CreditSaleService {
     private final PaymentMapper paymentMapper;
     private final AuditLogService auditLogService;
     private final PenaltySettingsService penaltySettingsService;
+    private final FileStorageService fileStorageService;
 
     @Transactional(readOnly = true)
     public PageResponse<SaleResponse> search(String search, SaleStatus status, Long customerId, Pageable pageable) {
@@ -84,7 +92,9 @@ public class CreditSaleService {
         return new SaleDetailResponse(
                 saleMapper.toResponse(sale, sale.getInstallments(), today, settings),
                 sale.getInstallments().stream().map(i -> saleMapper.toResponse(i, today, settings)).toList(),
-                paymentRepository.findBySale(id).stream().map(paymentMapper::toResponse).toList());
+                paymentRepository.findBySale(id).stream().map(paymentMapper::toResponse).toList(),
+                saleAttachmentRepository.findBySaleIdOrderByCreatedAtAsc(id).stream()
+                        .map(saleMapper::toResponse).toList());
     }
 
     @Transactional(readOnly = true)
@@ -204,9 +214,47 @@ public class CreditSaleService {
             throw new BusinessRuleException(
                     "Ce contrat comporte des paiements : annulez-le au lieu de le supprimer");
         }
+        saleAttachmentRepository.findBySaleIdOrderByCreatedAtAsc(id)
+                .forEach(attachment -> fileStorageService.deleteByPublicUrl(attachment.getFileUrl()));
         auditLogService.record("CREDIT_SALE", id, sale.getReference(), "DELETE", null);
         saleRepository.delete(sale);
         log.info("Contrat supprime: {}", id);
+    }
+
+    @Transactional
+    public SaleAttachmentResponse uploadAttachment(Long saleId, SaleAttachmentType type, MultipartFile file) {
+        CreditSale sale = getEntity(saleId);
+        if (type == SaleAttachmentType.SIGNATURE) {
+            saleAttachmentRepository.findBySaleIdAndType(saleId, SaleAttachmentType.SIGNATURE)
+                    .forEach(existing -> {
+                        fileStorageService.deleteByPublicUrl(existing.getFileUrl());
+                        saleAttachmentRepository.delete(existing);
+                    });
+        }
+
+        String fileUrl = fileStorageService.store(file, "sales/" + saleId);
+        SaleAttachment attachment = saleAttachmentRepository.save(SaleAttachment.builder()
+                .sale(sale)
+                .type(type)
+                .fileUrl(fileUrl)
+                .originalFilename(file.getOriginalFilename())
+                .contentType(file.getContentType())
+                .build());
+
+        auditLogService.record("CREDIT_SALE", saleId, sale.getReference(), "ATTACHMENT_ADD", type.name());
+        return saleMapper.toResponse(attachment);
+    }
+
+    @Transactional
+    public void deleteAttachment(Long saleId, Long attachmentId) {
+        CreditSale sale = getEntity(saleId);
+        SaleAttachment attachment = saleAttachmentRepository.findByIdAndSaleId(attachmentId, saleId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Piece jointe", attachmentId));
+
+        fileStorageService.deleteByPublicUrl(attachment.getFileUrl());
+        saleAttachmentRepository.delete(attachment);
+        auditLogService.record("CREDIT_SALE", saleId, sale.getReference(), "ATTACHMENT_REMOVE",
+                attachment.getType().name());
     }
 
     @Transactional(readOnly = true)
