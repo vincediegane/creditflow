@@ -19,11 +19,13 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import DashboardIcon from '@mui/icons-material/SpaceDashboard';
 import EventIcon from '@mui/icons-material/EventAvailable';
 import GroupIcon from '@mui/icons-material/Group';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -45,6 +47,8 @@ const NAV_ITEMS = [
   { to: '/', label: 'Tableau de bord', icon: <DashboardIcon />, end: true },
   { to: '/clients', label: 'Clients', icon: <GroupIcon /> },
   { to: '/produits', label: 'Produits', icon: <Inventory2Icon /> },
+  { to: '/fournisseurs', label: 'Fournisseurs', icon: <LocalShippingIcon /> },
+  { to: '/achats', label: 'Achats', icon: <AddShoppingCartIcon /> },
   { to: '/ventes', label: 'Ventes à crédit', icon: <ReceiptLongIcon /> },
   { to: '/paiements', label: 'Paiements', icon: <PaymentsIcon /> },
   { to: '/echeances', label: 'Échéances', icon: <EventIcon /> },

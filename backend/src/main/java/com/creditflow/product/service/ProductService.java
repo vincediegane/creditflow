@@ -7,11 +7,16 @@ import com.creditflow.common.repository.Specs;
 import com.creditflow.common.util.Money;
 import com.creditflow.product.domain.Product;
 import com.creditflow.product.domain.ProductStatus;
+import com.creditflow.product.domain.StockMovement;
+import com.creditflow.product.domain.StockMovementType;
+import com.creditflow.product.domain.StockSourceType;
 import com.creditflow.product.dto.ProductRequest;
 import com.creditflow.product.dto.ProductResponse;
+import com.creditflow.product.dto.StockMovementResponse;
 import com.creditflow.product.mapper.ProductMapper;
 import com.creditflow.product.repository.ProductRepository;
 import com.creditflow.product.repository.ProductSpecifications;
+import com.creditflow.product.repository.StockMovementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -33,6 +38,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
     private final AuditLogService auditLogService;
+    private final StockMovementRepository stockMovementRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> search(String search, String category, ProductStatus status,
@@ -145,12 +151,49 @@ public class ProductService {
      */
     @Transactional
     public void decreaseStock(Product product, int quantity) {
-        int newStock = Math.max(0, product.getStock() - quantity);
+        int previousStock = product.getStock();
+        int newStock = Math.max(0, previousStock - quantity);
+        int actualDecrease = previousStock - newStock;
         product.setStock(newStock);
         if (newStock == 0 && product.getStatus() == ProductStatus.ACTIVE) {
             product.setStatus(ProductStatus.OUT_OF_STOCK);
         }
         productRepository.save(product);
+        if (actualDecrease > 0) {
+            recordMovement(product, StockMovementType.OUT, actualDecrease, StockSourceType.SALE, null);
+        }
+    }
+
+    /**
+     * Incremente le stock lors d'une reception fournisseur. Reactive le produit
+     * s'il etait en rupture.
+     */
+    @Transactional
+    public void increaseStock(Product product, int quantity, StockSourceType sourceType, Long sourceId) {
+        int newStock = product.getStock() + quantity;
+        product.setStock(newStock);
+        if (newStock > 0 && product.getStatus() == ProductStatus.OUT_OF_STOCK) {
+            product.setStatus(ProductStatus.ACTIVE);
+        }
+        productRepository.save(product);
+        recordMovement(product, StockMovementType.IN, quantity, sourceType, sourceId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StockMovementResponse> stockMovements(Long productId) {
+        getEntity(productId);
+        return stockMovementRepository.findByProductIdOrderByOccurredAtDescIdDesc(productId)
+                .stream()
+                .map(m -> new StockMovementResponse(m.getId(), m.getProduct().getId(), m.getType(), m.getQuantity(),
+                        m.getSourceType(), m.getSourceId(), m.getOccurredAt(), m.getCreatedBy()))
+                .toList();
+    }
+
+    private void recordMovement(Product product, StockMovementType type, int quantity,
+                                 StockSourceType sourceType, Long sourceId) {
+        stockMovementRepository.save(StockMovement.builder()
+                .product(product).type(type).quantity(quantity)
+                .sourceType(sourceType).sourceId(sourceId).build());
     }
 
     private ProductStatus resolveStatus(ProductStatus requested, Integer stock) {

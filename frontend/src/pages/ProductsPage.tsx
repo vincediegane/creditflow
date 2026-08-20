@@ -28,6 +28,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import EditIcon from '@mui/icons-material/EditOutlined';
+import HistoryIcon from '@mui/icons-material/History';
 import SearchIcon from '@mui/icons-material/Search';
 
 import { errorMessage } from '../api/client';
@@ -37,6 +38,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
 import StatusChip from '../components/StatusChip';
+import StockMovementsDialog from '../components/StockMovementsDialog';
 import type { Product, ProductPayload } from '../types';
 import { PRODUCT_STATUS_LABELS, formatMoney } from '../utils/format';
 
@@ -62,6 +64,7 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [toDelete, setToDelete] = useState<Product | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [movementsFor, setMovementsFor] = useState<Product | null>(null);
 
   const { register, control, handleSubmit, reset, formState } = useForm<ProductPayload>({
     defaultValues: EMPTY_FORM,
@@ -222,6 +225,11 @@ export default function ProductsPage() {
                     <StatusChip status={product.status} kind="product" />
                   </TableCell>
                   <TableCell align="right">
+                    <Tooltip title="Mouvements de stock">
+                      <IconButton onClick={() => setMovementsFor(product)}>
+                        <HistoryIcon />
+                      </IconButton>
+                    </Tooltip>
                     {user?.role === 'ADMIN' && (
                       <>
                         <Tooltip title="Modifier">
@@ -358,6 +366,8 @@ export default function ProductsPage() {
         onConfirm={() => toDelete && deleteMutation.mutate(toDelete.id)}
         onClose={() => setToDelete(null)}
       />
+
+      <StockMovementsDialog product={movementsFor} onClose={() => setMovementsFor(null)} />
     </Box>
   );
 }

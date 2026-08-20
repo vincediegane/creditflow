@@ -4,6 +4,7 @@ import com.creditflow.common.dto.PageResponse;
 import com.creditflow.product.domain.ProductStatus;
 import com.creditflow.product.dto.ProductRequest;
 import com.creditflow.product.dto.ProductResponse;
+import com.creditflow.product.dto.StockMovementResponse;
 import com.creditflow.product.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -63,6 +64,12 @@ public class ProductController {
     @Operation(summary = "Consulter un produit")
     public ProductResponse get(@PathVariable Long id) {
         return productService.findById(id);
+    }
+
+    @GetMapping("/{id}/stock-movements")
+    @Operation(summary = "Historique des mouvements de stock d'un produit")
+    public List<StockMovementResponse> stockMovements(@PathVariable Long id) {
+        return productService.stockMovements(id);
     }
 
     @PostMapping
