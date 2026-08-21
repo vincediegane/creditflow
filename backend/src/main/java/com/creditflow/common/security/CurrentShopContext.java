@@ -32,30 +32,34 @@ public class CurrentShopContext {
 
     /** Boutiques accessibles a l'utilisateur authentifie courant (jamais vide pour un compte valide). */
     public List<Long> accessibleShopIds() {
-        User user = currentUser();
-        if (!user.getShops().isEmpty()) {
-            return user.getShops().stream().map(Shop::getId).toList();
-        }
-        if (user.getRole() == Role.ADMIN) {
-            return shopRepository.findAllByActiveTrueOrderByNameAsc().stream().map(Shop::getId).toList();
-        }
-        throw new BusinessRuleException("Aucune boutique n'est assignee a votre compte. Contactez votre administrateur.");
+        return accessibleShopIds(currentUser());
+    }
+
+    /** Meme regle de resolution, pour un utilisateur deja charge (connexion : le SecurityContext n'est pas encore peuple). */
+    public List<Long> accessibleShopIds(User user) {
+        return accessibleShopsOf(user).stream().map(Shop::getId).toList();
     }
 
     /** Resumes (id + nom) des boutiques accessibles — utilise par AuthResponse. */
     public List<ShopSummary> accessibleShops() {
-        User user = currentUser();
-        List<Shop> shops;
+        return accessibleShops(currentUser());
+    }
+
+    /** Meme regle de resolution, pour un utilisateur deja charge (connexion : le SecurityContext n'est pas encore peuple). */
+    public List<ShopSummary> accessibleShops(User user) {
+        return accessibleShopsOf(user).stream().map(s -> new ShopSummary(s.getId(), s.getName())).toList();
+    }
+
+    private List<Shop> accessibleShopsOf(User user) {
         if (!user.getShops().isEmpty()) {
-            shops = user.getShops().stream()
+            return user.getShops().stream()
                     .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
                     .toList();
-        } else if (user.getRole() == Role.ADMIN) {
-            shops = shopRepository.findAllByActiveTrueOrderByNameAsc();
-        } else {
-            throw new BusinessRuleException("Aucune boutique n'est assignee a votre compte. Contactez votre administrateur.");
         }
-        return shops.stream().map(s -> new ShopSummary(s.getId(), s.getName())).toList();
+        if (user.getRole() == Role.ADMIN) {
+            return shopRepository.findAllByActiveTrueOrderByNameAsc();
+        }
+        throw new BusinessRuleException("Aucune boutique n'est assignee a votre compte. Contactez votre administrateur.");
     }
 
     /**

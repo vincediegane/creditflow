@@ -44,8 +44,10 @@ public class AuthService {
         String token = jwtService.generateToken(user.getUsername(), user.getRole().name());
         log.info("Connexion reussie pour {}", user.getUsername());
 
+        // authenticationManager.authenticate() ne peuple pas le SecurityContext : les boutiques
+        // accessibles sont resolues depuis l'utilisateur deja charge, pas depuis le contexte courant.
         return new AuthResponse(token, "Bearer", jwtService.expiryOf(token), toResponse(user),
-                currentShopContext.accessibleShops());
+                currentShopContext.accessibleShops(user));
     }
 
     @Transactional(readOnly = true)

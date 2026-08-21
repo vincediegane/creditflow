@@ -143,6 +143,18 @@ class CurrentShopContextTest {
     }
 
     @Test
+    @DisplayName("accessibleShops(user) resout les boutiques sans SecurityContext")
+    void accessibleShopsForExplicitUserWithoutSecurityContext() {
+        SecurityContextHolder.clearContext();
+        User seller = User.builder().username("vendeur").role(Role.SELLER)
+                .shops(new HashSet<>(Set.of(shop1))).build();
+
+        assertThat(currentShopContext.accessibleShops(seller))
+                .containsExactly(new com.creditflow.shop.dto.ShopSummary(1L, "Boutique 1"));
+        assertThat(currentShopContext.accessibleShopIds(seller)).containsExactly(1L);
+    }
+
+    @Test
     @DisplayName("assertAccessible leve ResourceNotFoundException pour une boutique hors perimetre")
     void assertAccessibleFailsForOutOfScopeShop() {
         User seller = User.builder().username("vendeur").role(Role.SELLER)
