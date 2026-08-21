@@ -1,6 +1,7 @@
 package com.creditflow.audit.web;
 
 import com.creditflow.audit.dto.AuditLogResponse;
+import com.creditflow.audit.service.AuditLogAccessGuard;
 import com.creditflow.audit.service.AuditLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,10 +20,12 @@ import java.util.List;
 public class AuditLogController {
 
     private final AuditLogService auditLogService;
+    private final AuditLogAccessGuard auditLogAccessGuard;
 
     @GetMapping
-    @Operation(summary = "Historique d'une entite (client, contrat, produit)")
+    @Operation(summary = "Historique d'une entite (client, contrat, produit) de vos boutiques")
     public List<AuditLogResponse> list(@RequestParam String entityType, @RequestParam Long entityId) {
+        auditLogAccessGuard.assertReadable(entityType, entityId);
         return auditLogService.list(entityType, entityId);
     }
 }
