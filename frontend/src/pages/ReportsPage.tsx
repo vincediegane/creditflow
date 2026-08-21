@@ -26,37 +26,57 @@ import TableViewIcon from '@mui/icons-material/TableView';
 
 import { errorMessage } from '../api/client';
 import { reportsApi } from '../api/endpoints';
+import { useAuth } from '../auth/AuthContext';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
 import type { ReportType } from '../types';
 import { formatDateTime, formatMoney, formatNumber, today } from '../utils/format';
 
-const REPORTS: { value: ReportType; label: string; needsDate: boolean }[] = [
+const REPORTS: {
+  value: ReportType;
+  label: string;
+  needsDate: boolean;
+  needsAmountFilters?: boolean;
+  adminOnly?: boolean;
+}[] = [
   { value: 'DAILY_PAYMENTS', label: 'Paiements du jour', needsDate: true },
   { value: 'MONTHLY_PAYMENTS', label: 'Paiements du mois', needsDate: true },
   { value: 'LATE_CUSTOMERS', label: 'Clients en retard', needsDate: false },
   { value: 'OUTSTANDING', label: 'Créances restantes', needsDate: false },
+  { value: 'DEFAULT_RATE', label: 'Taux de défaut', needsDate: false, needsAmountFilters: true },
+  { value: 'SELLER_PERFORMANCE', label: 'Performance vendeur', needsDate: false, adminOnly: true },
 ];
 
 export default function ReportsPage() {
+  const { user } = useAuth();
   const [type, setType] = useState<ReportType>('DAILY_PAYMENTS');
   const [date, setDate] = useState(today());
+  const [profession, setProfession] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const current = REPORTS.find((report) => report.value === type)!;
-  const params = current.needsDate ? { from: date } : {};
+  const visibleReports = REPORTS.filter((report) => !report.adminOnly || user?.role === 'ADMIN');
+  const current = visibleReports.find((report) => report.value === type) ?? visibleReports[0];
+
+  const params: { from?: string; profession?: string; minAmount?: string; maxAmount?: string } = {
+    ...(current.needsDate ? { from: date } : {}),
+    ...(current.value === 'DEFAULT_RATE' && profession ? { profession } : {}),
+    ...(current.value === 'DEFAULT_RATE' && minAmount ? { minAmount } : {}),
+    ...(current.value === 'DEFAULT_RATE' && maxAmount ? { maxAmount } : {}),
+  };
 
   const query = useQuery({
-    queryKey: ['report', type, current.needsDate ? date : null],
-    queryFn: () => reportsApi.get(type, params),
+    queryKey: ['report', current.value, params],
+    queryFn: () => reportsApi.get(current.value, params),
   });
 
   const download = async (format: 'pdf' | 'excel') => {
     setError(null);
     setDownloading(true);
     try {
-      await reportsApi.download(type, format, params);
+      await reportsApi.download(current.value, format, params);
     } catch (err) {
       setError(errorMessage(err, "L'export n'a pas pu être généré"));
     } finally {
@@ -122,7 +142,7 @@ export default function ReportsPage() {
                 onChange={(_, value) => value && setType(value as ReportType)}
                 sx={{ flexWrap: 'wrap' }}
               >
-                {REPORTS.map((report) => (
+                {visibleReports.map((report) => (
                   <ToggleButton key={report.value} value={report.value} sx={{ px: 2 }}>
                     {report.label}
                   </ToggleButton>
@@ -140,6 +160,36 @@ export default function ReportsPage() {
                   onChange={(event) => setDate(event.target.value)}
                 />
               </Grid>
+            )}
+            {current.needsAmountFilters && (
+              <>
+                <Grid item xs={12} sm={4} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Profession"
+                    value={profession}
+                    onChange={(event) => setProfession(event.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={6} sm={4} md={2.5}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Montant min"
+                    value={minAmount}
+                    onChange={(event) => setMinAmount(event.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={6} sm={4} md={2.5}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Montant max"
+                    value={maxAmount}
+                    onChange={(event) => setMaxAmount(event.target.value)}
+                  />
+                </Grid>
+              </>
             )}
           </Grid>
         </CardContent>
