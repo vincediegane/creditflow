@@ -1,8 +1,10 @@
 package com.creditflow.supplier.service;
 
 import com.creditflow.common.dto.PageResponse;
+import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.repository.Specs;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.product.domain.Product;
 import com.creditflow.product.domain.StockSourceType;
 import com.creditflow.product.service.ProductService;
@@ -33,11 +35,13 @@ public class StockReceptionService {
     private final StockReceptionMapper stockReceptionMapper;
     private final SupplierService supplierService;
     private final ProductService productService;
+    private final CurrentShopContext currentShopContext;
 
     @Transactional(readOnly = true)
     public PageResponse<StockReceptionResponse> search(Long supplierId, Pageable pageable) {
         Page<StockReception> page = stockReceptionRepository.findAll(
-                Specs.combine(StockReceptionSpecifications.forSupplier(supplierId)), pageable);
+                Specs.combine(StockReceptionSpecifications.forSupplier(supplierId),
+                        StockReceptionSpecifications.inShops(currentShopContext.accessibleShopIds())), pageable);
         return PageResponse.of(page, stockReceptionMapper::toResponse);
     }
 
@@ -48,12 +52,16 @@ public class StockReceptionService {
 
     @Transactional(readOnly = true)
     public StockReception getEntity(Long id) {
-        return stockReceptionRepository.findById(id)
+        StockReception reception = stockReceptionRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Reception", id));
+        reception.getLines()
+                .forEach(line -> currentShopContext.assertAccessible(line.getProduct().getShop().getId()));
+        return reception;
     }
 
     @Transactional
     public StockReceptionResponse receive(StockReceptionRequest request) {
+        Long targetShopId = currentShopContext.shopIdForCreation();
         Supplier supplier = supplierService.getEntity(request.supplierId());
 
         StockReception reception = StockReception.builder()
@@ -65,6 +73,10 @@ public class StockReceptionService {
         List<Product> resolvedProducts = new ArrayList<>();
         for (var line : request.lines()) {
             Product product = productService.getEntity(line.productId());
+            if (!product.getShop().getId().equals(targetShopId)) {
+                throw new BusinessRuleException(
+                        "Le produit selectionne n'appartient pas a la boutique cible de cette reception");
+            }
             reception.addLine(StockReceptionLine.builder().product(product).quantity(line.quantity()).build());
             resolvedProducts.add(product);
         }
