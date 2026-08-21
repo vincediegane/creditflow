@@ -5,6 +5,8 @@ import com.creditflow.customer.domain.Customer;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
+
 public final class CustomerSpecifications {
 
     private CustomerSpecifications() {
@@ -23,5 +25,12 @@ public final class CustomerSpecifications {
                 cb.like(root.get("phone"), "%" + search.trim() + "%"),
                 Specs.likeIgnoreCase(cb, cb.coalesce(root.get("cniNumber"), ""), search),
                 Specs.likeIgnoreCase(cb, cb.coalesce(root.get("profession"), ""), search));
+    }
+
+    public static Specification<Customer> inShops(List<Long> shopIds) {
+        if (shopIds == null || shopIds.isEmpty()) {
+            return null;
+        }
+        return (root, query, cb) -> root.get("shop").get("id").in(shopIds);
     }
 }

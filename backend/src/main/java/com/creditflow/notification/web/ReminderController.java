@@ -1,5 +1,6 @@
 package com.creditflow.notification.web;
 
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.config.AppProperties;
 import com.creditflow.notification.dto.BulkReminderResponse;
 import com.creditflow.notification.dto.LateCustomerResponse;
@@ -33,6 +34,7 @@ public class ReminderController {
     private final LateCustomerService lateCustomerService;
     private final NotificationChannel notificationChannel;
     private final AppProperties properties;
+    private final CurrentShopContext currentShopContext;
 
     @PostMapping("/generate")
     @Operation(summary = "Generer le message de relance a copier")
@@ -57,7 +59,7 @@ public class ReminderController {
     @GetMapping("/late-customers")
     @Operation(summary = "Tableau des clients en retard")
     public List<LateCustomerResponse> lateCustomers() {
-        return lateCustomerService.lateCustomers();
+        return lateCustomerService.lateCustomers(currentShopContext.accessibleShopIds());
     }
 
     @GetMapping("/settings")

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public final class PaymentSpecifications {
 
@@ -57,5 +58,12 @@ public final class PaymentSpecifications {
             return null;
         }
         return (root, query, cb) -> cb.equal(root.get("sale").get("customer").get("id"), customerId);
+    }
+
+    public static Specification<Payment> inShops(List<Long> shopIds) {
+        if (shopIds == null || shopIds.isEmpty()) {
+            return null;
+        }
+        return (root, query, cb) -> root.get("sale").get("shop").get("id").in(shopIds);
     }
 }

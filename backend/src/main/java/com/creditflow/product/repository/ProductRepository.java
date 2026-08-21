@@ -14,14 +14,16 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     Optional<Product> findFirstByNameIgnoreCase(String name);
 
-    @Query("SELECT DISTINCT p.category FROM Product p ORDER BY p.category")
-    List<String> findAllCategories();
+    @Query("SELECT DISTINCT p.category FROM Product p WHERE p.shop.id IN :shopIds ORDER BY p.category")
+    List<String> findAllCategories(@Param("shopIds") List<Long> shopIds);
 
     @Query("""
             SELECT p FROM Product p
-            WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))
-               OR LOWER(p.category) LIKE LOWER(CONCAT('%', :search, '%'))
+            WHERE (LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))
+               OR LOWER(p.category) LIKE LOWER(CONCAT('%', :search, '%')))
+              AND p.shop.id IN :shopIds
             ORDER BY p.name
             """)
-    List<Product> quickSearch(@Param("search") String search, Pageable pageable);
+    List<Product> quickSearch(@Param("search") String search, @Param("shopIds") List<Long> shopIds,
+                               Pageable pageable);
 }

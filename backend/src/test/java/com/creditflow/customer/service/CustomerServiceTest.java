@@ -3,11 +3,15 @@ package com.creditflow.customer.service;
 import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.common.storage.FileStorageService;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.dto.CustomerRequest;
 import com.creditflow.customer.mapper.CustomerMapper;
 import com.creditflow.customer.repository.CustomerRepository;
+import com.creditflow.shop.domain.Shop;
+import com.creditflow.shop.repository.ShopRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,12 +46,26 @@ class CustomerServiceTest {
     @Mock
     private AuditLogService auditLogService;
 
+    @Mock
+    private CurrentShopContext currentShopContext;
+
+    @Mock
+    private ShopRepository shopRepository;
+
     @InjectMocks
     private CustomerService customerService;
 
     private CustomerRequest request() {
         return new CustomerRequest("Amadou", "Diallo", "770000001", "Medina",
                 "1234567890123", "Commercant", null, null, true);
+    }
+
+    @BeforeEach
+    void setUp() {
+        when(currentShopContext.accessibleShopIds()).thenReturn(java.util.List.of(1L));
+        when(currentShopContext.shopIdForCreation()).thenReturn(1L);
+        when(shopRepository.getReferenceById(1L))
+                .thenReturn(Shop.builder().id(1L).name("Boutique principale").active(true).build());
     }
 
     @Test
@@ -103,19 +121,48 @@ class CustomerServiceTest {
     @DisplayName("la recherche rapide ignore une requete vide")
     void quickSearchIgnoresBlankQuery() {
         assertThat(customerService.quickSearch("  ", 10)).isEmpty();
-        verify(customerRepository, never()).quickSearch(any(), any());
+        verify(customerRepository, never()).quickSearch(any(), any(), any());
     }
 
     @Test
     @DisplayName("supprime un client et journalise l'action")
     void deletesCustomerAndRecordsAuditEntry() {
+        Shop shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
         Customer customer = Customer.builder()
-                .id(1L).firstName("Amadou").lastName("Diallo").phone("770000001").active(true).build();
+                .id(1L).firstName("Amadou").lastName("Diallo").phone("770000001").active(true).shop(shop).build();
         when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
 
         customerService.delete(1L);
 
         verify(auditLogService).record("CUSTOMER", 1L, "Amadou Diallo", "DELETE", null);
         verify(customerRepository).delete(customer);
+    }
+
+    @Test
+    @DisplayName("getEntity refuse l'acces a un client d'une autre boutique")
+    void getEntityRejectsCustomerFromAnotherShop() {
+        Shop otherShop = Shop.builder().id(2L).name("Autre boutique").active(true).build();
+        Customer customer = Customer.builder()
+                .id(5L).firstName("Fatou").lastName("Ndiaye").phone("770000009").active(true).shop(otherShop).build();
+        when(customerRepository.findById(5L)).thenReturn(Optional.of(customer));
+        org.mockito.Mockito.doThrow(new ResourceNotFoundException("Ressource introuvable"))
+                .when(currentShopContext).assertAccessible(2L);
+
+        assertThatThrownBy(() -> customerService.getEntity(5L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("create assigne la boutique resolue par shopIdForCreation")
+    void createAssignsShopFromCreationContext() {
+        Customer entity = Customer.builder().firstName("Amadou").lastName("Diallo")
+                .phone("770000001").active(true).build();
+        when(customerMapper.toEntity(any(CustomerRequest.class))).thenReturn(entity);
+        when(customerRepository.save(any(Customer.class))).thenAnswer(i -> i.getArgument(0));
+
+        customerService.create(request());
+
+        assertThat(entity.getShop()).isNotNull();
+        assertThat(entity.getShop().getId()).isEqualTo(1L);
     }
 }

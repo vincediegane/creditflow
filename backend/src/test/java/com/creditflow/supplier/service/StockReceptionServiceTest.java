@@ -2,12 +2,15 @@ package com.creditflow.supplier.service;
 
 import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.product.domain.Product;
 import com.creditflow.product.domain.ProductStatus;
 import com.creditflow.product.mapper.ProductMapper;
 import com.creditflow.product.repository.ProductRepository;
 import com.creditflow.product.repository.StockMovementRepository;
 import com.creditflow.product.service.ProductService;
+import com.creditflow.shop.domain.Shop;
+import com.creditflow.shop.repository.ShopRepository;
 import com.creditflow.supplier.domain.Supplier;
 import com.creditflow.supplier.dto.StockReceptionRequest;
 import com.creditflow.supplier.dto.StockReceptionRequest.StockReceptionLineRequest;
@@ -59,6 +62,12 @@ class StockReceptionServiceTest {
     @Mock
     private StockMovementRepository stockMovementRepository;
 
+    @Mock
+    private CurrentShopContext currentShopContext;
+
+    @Mock
+    private ShopRepository shopRepository;
+
     private ProductService productService;
 
     private StockReceptionService stockReceptionService;
@@ -69,13 +78,16 @@ class StockReceptionServiceTest {
 
     @BeforeEach
     void setUp() {
-        productService = new ProductService(productRepository, productMapper, auditLogService, stockMovementRepository);
+        productService = new ProductService(productRepository, productMapper, auditLogService,
+                stockMovementRepository, currentShopContext, shopRepository);
         stockReceptionService = new StockReceptionService(
                 stockReceptionRepository, stockReceptionMapper, supplierService, productService);
 
+        Shop shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
         supplier = Supplier.builder().id(1L).name("Grossiste Sahel").active(true).build();
-        phone = Product.builder().id(1L).name("iPhone 13").stock(5).status(ProductStatus.ACTIVE).build();
-        laptop = Product.builder().id(2L).name("MacBook Air").stock(0).status(ProductStatus.OUT_OF_STOCK).build();
+        phone = Product.builder().id(1L).name("iPhone 13").stock(5).status(ProductStatus.ACTIVE).shop(shop).build();
+        laptop = Product.builder().id(2L).name("MacBook Air").stock(0).status(ProductStatus.OUT_OF_STOCK)
+                .shop(shop).build();
 
         when(supplierService.getEntity(1L)).thenReturn(supplier);
         when(productRepository.findById(1L)).thenReturn(Optional.of(phone));

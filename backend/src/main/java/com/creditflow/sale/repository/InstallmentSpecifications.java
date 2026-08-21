@@ -7,6 +7,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public final class InstallmentSpecifications {
 
@@ -59,5 +60,12 @@ public final class InstallmentSpecifications {
         return (root, query, cb) -> cb.and(
                 cb.notEqual(root.get("status"), InstallmentStatus.PAID),
                 cb.lessThan(root.get("dueDate"), reference));
+    }
+
+    public static Specification<Installment> inShops(List<Long> shopIds) {
+        if (shopIds == null || shopIds.isEmpty()) {
+            return null;
+        }
+        return (root, query, cb) -> root.get("sale").get("shop").get("id").in(shopIds);
     }
 }

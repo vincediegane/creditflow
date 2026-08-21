@@ -1,6 +1,8 @@
 package com.creditflow.product.service;
 
 import com.creditflow.audit.service.AuditLogService;
+import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.product.domain.Product;
 import com.creditflow.product.domain.ProductStatus;
 import com.creditflow.product.domain.StockMovement;
@@ -10,6 +12,8 @@ import com.creditflow.product.dto.ProductRequest;
 import com.creditflow.product.mapper.ProductMapper;
 import com.creditflow.product.repository.ProductRepository;
 import com.creditflow.product.repository.StockMovementRepository;
+import com.creditflow.shop.domain.Shop;
+import com.creditflow.shop.repository.ShopRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -51,20 +56,31 @@ class ProductServiceTest {
     @Mock
     private StockMovementRepository stockMovementRepository;
 
+    @Mock
+    private CurrentShopContext currentShopContext;
+
+    @Mock
+    private ShopRepository shopRepository;
+
     @InjectMocks
     private ProductService productService;
 
     private Product product;
+    private Shop shop;
 
     @BeforeEach
     void setUp() {
+        shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
         product = Product.builder()
                 .id(1L).name("iPhone 13").category("Telephone")
                 .cashPrice(new BigDecimal("450000")).creditPrice(new BigDecimal("560000"))
-                .stock(3).status(ProductStatus.ACTIVE)
+                .stock(3).status(ProductStatus.ACTIVE).shop(shop)
                 .build();
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(productRepository.save(any(Product.class))).thenAnswer(i -> i.getArgument(0));
+        when(currentShopContext.accessibleShopIds()).thenReturn(List.of(1L));
+        when(currentShopContext.shopIdForCreation()).thenReturn(1L);
+        when(shopRepository.getReferenceById(1L)).thenReturn(shop);
     }
 
     @Test
@@ -152,5 +168,29 @@ class ProductServiceTest {
         assertThat(result).hasSize(2);
         assertThat(result.get(0).type()).isEqualTo(StockMovementType.OUT);
         assertThat(result.get(1).type()).isEqualTo(StockMovementType.IN);
+    }
+
+    @Test
+    @DisplayName("getEntity refuse l'acces a un produit d'une autre boutique")
+    void getEntityRejectsProductFromAnotherShop() {
+        org.mockito.Mockito.doThrow(new com.creditflow.common.exception.ResourceNotFoundException("Ressource introuvable"))
+                .when(currentShopContext).assertAccessible(1L);
+
+        assertThatThrownBy(() -> productService.getEntity(1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("create assigne la boutique resolue par shopIdForCreation")
+    void createAssignsShopFromCreationContext() {
+        ProductRequest request = new ProductRequest("Telephone", "Electronique", new BigDecimal("100000"),
+                new BigDecimal("120000"), 10, null, ProductStatus.ACTIVE);
+        when(productMapper.toEntity(any(ProductRequest.class))).thenReturn(new Product());
+
+        productService.create(request);
+
+        ArgumentCaptor<Product> captor = ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(captor.capture());
+        assertThat(captor.getValue().getShop().getId()).isEqualTo(1L);
     }
 }

@@ -5,6 +5,7 @@ import com.creditflow.common.dto.PageResponse;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.repository.Specs;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.common.util.Money;
 import com.creditflow.payment.domain.Payment;
 import com.creditflow.payment.domain.PaymentMethod;
@@ -52,6 +53,7 @@ public class PaymentService {
     private final AuditLogService auditLogService;
     private final PenaltySettingsService penaltySettingsService;
     private final PenaltyCalculator penaltyCalculator;
+    private final CurrentShopContext currentShopContext;
 
     @Transactional(readOnly = true)
     public PageResponse<PaymentResponse> search(String search, PaymentMethod method, LocalDate from, LocalDate to,
@@ -62,15 +64,18 @@ public class PaymentService {
                         PaymentSpecifications.hasMethod(method),
                         PaymentSpecifications.paidFrom(from),
                         PaymentSpecifications.paidTo(to),
-                        PaymentSpecifications.forCustomer(customerId)),
+                        PaymentSpecifications.forCustomer(customerId),
+                        PaymentSpecifications.inShops(currentShopContext.accessibleShopIds())),
                 pageable);
         return PageResponse.of(page, paymentMapper::toResponse);
     }
 
     @Transactional(readOnly = true)
     public PaymentResponse findById(Long id) {
-        return paymentMapper.toResponse(paymentRepository.findById(id)
-                .orElseThrow(() -> ResourceNotFoundException.of("Paiement", id)));
+        Payment payment = paymentRepository.findById(id)
+                .orElseThrow(() -> ResourceNotFoundException.of("Paiement", id));
+        currentShopContext.assertAccessible(payment.getSale().getShop().getId());
+        return paymentMapper.toResponse(payment);
     }
 
     @Transactional(readOnly = true)
@@ -80,6 +85,9 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public List<PaymentResponse> findBySale(Long saleId) {
+        CreditSale sale = saleRepository.findDetailById(saleId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Contrat", saleId));
+        currentShopContext.assertAccessible(sale.getShop().getId());
         return paymentRepository.findBySale(saleId).stream().map(paymentMapper::toResponse).toList();
     }
 
@@ -88,6 +96,7 @@ public class PaymentService {
     public Receipt receipt(Long paymentId) {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Paiement", paymentId));
+        currentShopContext.assertAccessible(payment.getSale().getShop().getId());
         List<Installment> installments =
                 installmentRepository.findBySaleIdOrderByNumberAsc(payment.getSale().getId());
 
@@ -102,6 +111,7 @@ public class PaymentService {
     public PaymentResponse register(PaymentRequest request) {
         CreditSale sale = saleRepository.findDetailById(request.saleId())
                 .orElseThrow(() -> ResourceNotFoundException.of("Contrat", request.saleId()));
+        currentShopContext.assertAccessible(sale.getShop().getId());
 
         if (sale.getStatus() == SaleStatus.CANCELLED) {
             throw new BusinessRuleException("Ce contrat est annule, aucun versement ne peut etre enregistre");
@@ -160,6 +170,7 @@ public class PaymentService {
                 .orElseThrow(() -> ResourceNotFoundException.of("Paiement", id));
         CreditSale sale = saleRepository.findDetailById(payment.getSale().getId())
                 .orElseThrow(() -> ResourceNotFoundException.of("Contrat", payment.getSale().getId()));
+        currentShopContext.assertAccessible(sale.getShop().getId());
 
         String details = "Versement de %s le %s (%s)".formatted(
                 payment.getAmount().toPlainString(), payment.getPaymentDate(), payment.getMethod());

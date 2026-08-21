@@ -2,6 +2,7 @@ package com.creditflow.notification.service;
 
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.service.CustomerService;
@@ -37,6 +38,7 @@ public class ReminderService {
     private final NotificationChannel notificationChannel;
     private final LateCustomerService lateCustomerService;
     private final AuditLogService auditLogService;
+    private final CurrentShopContext currentShopContext;
 
     private record ReminderPreview(Customer customer, BigDecimal amount, String message) {
     }
@@ -66,7 +68,8 @@ public class ReminderService {
         requireAutomaticChannel();
 
         List<ReminderResponse> results = new ArrayList<>();
-        for (LateCustomerResponse lateCustomer : lateCustomerService.lateCustomers()) {
+        for (LateCustomerResponse lateCustomer : lateCustomerService.lateCustomers(
+                currentShopContext.accessibleShopIds())) {
             try {
                 ReminderPreview preview = prepareForCustomer(lateCustomer.customerId(), template);
                 results.add(doSend(preview.customer(), preview.amount(), preview.message()));
@@ -121,6 +124,7 @@ public class ReminderService {
     private ReminderPreview prepareForSale(Long saleId, String template) {
         CreditSale sale = saleRepository.findDetailById(saleId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Contrat", saleId));
+        currentShopContext.assertAccessible(sale.getShop().getId());
 
         LocalDate today = LocalDate.now();
         List<Installment> installments = installmentRepository.findBySaleIdOrderByNumberAsc(saleId);

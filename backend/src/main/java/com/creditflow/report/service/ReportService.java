@@ -1,5 +1,6 @@
 package com.creditflow.report.service;
 
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.notification.dto.LateCustomerResponse;
 import com.creditflow.notification.service.LateCustomerService;
 import com.creditflow.payment.domain.Payment;
@@ -30,26 +31,28 @@ public class ReportService {
     private final PaymentRepository paymentRepository;
     private final CreditSaleRepository saleRepository;
     private final LateCustomerService lateCustomerService;
+    private final CurrentShopContext currentShopContext;
 
     @Transactional(readOnly = true)
     public ReportData build(ReportType type, LocalDate from, LocalDate to) {
+        List<Long> shopIds = currentShopContext.resolveReadFilter();
         return switch (type) {
             case DAILY_PAYMENTS -> payments(ReportType.DAILY_PAYMENTS, "Paiements du jour",
-                    defaultDate(from), defaultDate(from));
+                    defaultDate(from), defaultDate(from), shopIds);
             case MONTHLY_PAYMENTS -> {
                 LocalDate reference = defaultDate(from);
                 YearMonth month = YearMonth.from(reference);
                 yield payments(ReportType.MONTHLY_PAYMENTS, "Paiements du mois",
                         from == null ? month.atDay(1) : from,
-                        to == null ? month.atEndOfMonth() : to);
+                        to == null ? month.atEndOfMonth() : to, shopIds);
             }
-            case LATE_CUSTOMERS -> lateCustomers();
-            case OUTSTANDING -> outstanding();
+            case LATE_CUSTOMERS -> lateCustomers(shopIds);
+            case OUTSTANDING -> outstanding(shopIds);
         };
     }
 
-    private ReportData payments(ReportType type, String title, LocalDate from, LocalDate to) {
-        List<Payment> payments = paymentRepository.findBetween(from, to);
+    private ReportData payments(ReportType type, String title, LocalDate from, LocalDate to, List<Long> shopIds) {
+        List<Payment> payments = paymentRepository.findBetweenForShops(from, to, shopIds);
 
         List<List<Object>> rows = payments.stream()
                 .map(p -> List.<Object>of(
@@ -88,8 +91,8 @@ public class ReportService {
                 LocalDateTime.now());
     }
 
-    private ReportData lateCustomers() {
-        List<LateCustomerResponse> late = lateCustomerService.lateCustomers();
+    private ReportData lateCustomers(List<Long> shopIds) {
+        List<LateCustomerResponse> late = lateCustomerService.lateCustomers(shopIds);
 
         List<List<Object>> rows = late.stream()
                 .map(l -> List.<Object>of(
@@ -132,8 +135,8 @@ public class ReportService {
                 LocalDateTime.now());
     }
 
-    private ReportData outstanding() {
-        List<CreditSale> sales = saleRepository.findAllDetailed().stream()
+    private ReportData outstanding(List<Long> shopIds) {
+        List<CreditSale> sales = saleRepository.findAllDetailedForShops(shopIds).stream()
                 .filter(s -> s.getStatus() == SaleStatus.ACTIVE)
                 .toList();
 

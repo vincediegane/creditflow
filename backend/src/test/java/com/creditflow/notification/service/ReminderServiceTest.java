@@ -2,6 +2,7 @@ package com.creditflow.notification.service;
 
 import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.exception.BusinessRuleException;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.service.CustomerService;
 import com.creditflow.notification.dto.BulkReminderResponse;
@@ -62,15 +63,19 @@ class ReminderServiceTest {
     @Mock
     private AuditLogService auditLogService;
 
+    @Mock
+    private CurrentShopContext currentShopContext;
+
     private ReminderService reminderService;
 
     @BeforeEach
     void setUp() {
         reminderService = new ReminderService(saleRepository, installmentRepository, customerService,
-                messageBuilder, notificationChannel, lateCustomerService, auditLogService);
+                messageBuilder, notificationChannel, lateCustomerService, auditLogService, currentShopContext);
 
         when(messageBuilder.build(any(), any())).thenReturn("Bonjour, votre echeance est en retard.");
         when(installmentRepository.findBySaleIdOrderByNumberAsc(anyLong())).thenReturn(Collections.emptyList());
+        when(currentShopContext.accessibleShopIds()).thenReturn(List.of(1L));
     }
 
     @Test
@@ -149,7 +154,7 @@ class ReminderServiceTest {
         when(notificationChannel.name()).thenReturn("WHATSAPP_CLOUD_API");
         when(notificationChannel.send(eq("770000001"), any())).thenReturn(true);
 
-        when(lateCustomerService.lateCustomers()).thenReturn(List.of(
+        when(lateCustomerService.lateCustomers(List.of(1L))).thenReturn(List.of(
                 lateCustomer(1L, "Amadou Diallo", "770000001"),
                 lateCustomer(2L, "Fatou Ndiaye", "770000002")));
 

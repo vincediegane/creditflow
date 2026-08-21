@@ -4,6 +4,7 @@ import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.dto.PageResponse;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.repository.Specs;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.common.util.Money;
 import com.creditflow.product.domain.Product;
 import com.creditflow.product.domain.ProductStatus;
@@ -17,6 +18,8 @@ import com.creditflow.product.mapper.ProductMapper;
 import com.creditflow.product.repository.ProductRepository;
 import com.creditflow.product.repository.ProductSpecifications;
 import com.creditflow.product.repository.StockMovementRepository;
+import com.creditflow.shop.domain.Shop;
+import com.creditflow.shop.repository.ShopRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -39,6 +42,8 @@ public class ProductService {
     private final ProductMapper productMapper;
     private final AuditLogService auditLogService;
     private final StockMovementRepository stockMovementRepository;
+    private final CurrentShopContext currentShopContext;
+    private final ShopRepository shopRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> search(String search, String category, ProductStatus status,
@@ -47,14 +52,17 @@ public class ProductService {
                 Specs.combine(
                         ProductSpecifications.matches(search),
                         ProductSpecifications.hasCategory(category),
-                        ProductSpecifications.hasStatus(status)),
+                        ProductSpecifications.hasStatus(status),
+                        ProductSpecifications.inShops(currentShopContext.accessibleShopIds())),
                 pageable);
         return PageResponse.of(page, productMapper::toResponse);
     }
 
     @Transactional(readOnly = true)
     public List<ProductResponse> findAllForSelect() {
-        return productRepository.findAll(Sort.by("name"))
+        return productRepository.findAll(
+                        Specs.combine(ProductSpecifications.inShops(currentShopContext.accessibleShopIds())),
+                        Sort.by("name"))
                 .stream()
                 .filter(p -> p.getStatus() != ProductStatus.INACTIVE)
                 .map(productMapper::toResponse)
@@ -66,7 +74,8 @@ public class ProductService {
         if (!StringUtils.hasText(search)) {
             return List.of();
         }
-        return productRepository.quickSearch(search.trim(), PageRequest.of(0, limit))
+        return productRepository.quickSearch(search.trim(), currentShopContext.accessibleShopIds(),
+                        PageRequest.of(0, limit))
                 .stream()
                 .map(productMapper::toResponse)
                 .toList();
@@ -74,7 +83,7 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public List<String> categories() {
-        return productRepository.findAllCategories();
+        return productRepository.findAllCategories(currentShopContext.accessibleShopIds());
     }
 
     @Transactional(readOnly = true)
@@ -84,16 +93,21 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Product getEntity(Long id) {
-        return productRepository.findById(id)
+        Product product = productRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Produit", id));
+        currentShopContext.assertAccessible(product.getShop().getId());
+        return product;
     }
 
     @Transactional
     public ProductResponse create(ProductRequest request) {
+        Shop shop = shopRepository.getReferenceById(currentShopContext.shopIdForCreation());
+
         Product product = productMapper.toEntity(request);
         product.setCashPrice(Money.round(request.cashPrice()));
         product.setCreditPrice(Money.round(request.creditPrice()));
         product.setStatus(resolveStatus(request.status(), request.stock()));
+        product.setShop(shop);
         Product saved = productRepository.save(product);
         log.info("Produit cree: {} ({})", saved.getName(), saved.getId());
         return productMapper.toResponse(saved);

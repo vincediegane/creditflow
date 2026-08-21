@@ -5,6 +5,7 @@ import com.creditflow.common.dto.PageResponse;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.repository.Specs;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.common.storage.FileStorageService;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.dto.CustomerRequest;
@@ -12,6 +13,8 @@ import com.creditflow.customer.dto.CustomerResponse;
 import com.creditflow.customer.mapper.CustomerMapper;
 import com.creditflow.customer.repository.CustomerRepository;
 import com.creditflow.customer.repository.CustomerSpecifications;
+import com.creditflow.shop.domain.Shop;
+import com.creditflow.shop.repository.ShopRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -34,11 +37,15 @@ public class CustomerService {
     private final CustomerMapper customerMapper;
     private final FileStorageService fileStorageService;
     private final AuditLogService auditLogService;
+    private final CurrentShopContext currentShopContext;
+    private final ShopRepository shopRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<CustomerResponse> search(String search, Pageable pageable) {
         Page<Customer> page = customerRepository.findAll(
-                Specs.combine(CustomerSpecifications.matches(search)), pageable);
+                Specs.combine(CustomerSpecifications.matches(search),
+                        CustomerSpecifications.inShops(currentShopContext.accessibleShopIds())),
+                pageable);
         return PageResponse.of(page, customerMapper::toResponse);
     }
 
@@ -47,7 +54,8 @@ public class CustomerService {
         if (!StringUtils.hasText(search)) {
             return List.of();
         }
-        return customerRepository.quickSearch(search.trim(), PageRequest.of(0, limit))
+        return customerRepository.quickSearch(search.trim(), currentShopContext.accessibleShopIds(),
+                        PageRequest.of(0, limit))
                 .stream()
                 .map(customerMapper::toResponse)
                 .toList();
@@ -55,7 +63,9 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public List<CustomerResponse> findAllForSelect() {
-        return customerRepository.findAll(Sort.by("lastName", "firstName"))
+        return customerRepository.findAll(
+                        Specs.combine(CustomerSpecifications.inShops(currentShopContext.accessibleShopIds())),
+                        Sort.by("lastName", "firstName"))
                 .stream()
                 .filter(Customer::isActive)
                 .map(customerMapper::toResponse)
@@ -69,8 +79,10 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public Customer getEntity(Long id) {
-        return customerRepository.findById(id)
+        Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Client", id));
+        currentShopContext.assertAccessible(customer.getShop().getId());
+        return customer;
     }
 
     @Transactional
@@ -78,8 +90,11 @@ public class CustomerService {
         assertPhoneAvailable(request.phone(), null);
         assertCniAvailable(request.cniNumber(), null);
 
+        Shop shop = shopRepository.getReferenceById(currentShopContext.shopIdForCreation());
+
         Customer customer = customerMapper.toEntity(request);
         customer.setCniNumber(blankToNull(request.cniNumber()));
+        customer.setShop(shop);
         Customer saved = customerRepository.save(customer);
         log.info("Client cree: {} ({})", saved.getFullName(), saved.getId());
         return customerMapper.toResponse(saved);
