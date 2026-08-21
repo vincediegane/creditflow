@@ -1,6 +1,7 @@
 package com.creditflow.dataimport.service;
 
 import com.creditflow.common.exception.BusinessRuleException;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.common.util.Money;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.repository.CustomerRepository;
@@ -14,6 +15,7 @@ import com.creditflow.product.repository.ProductRepository;
 import com.creditflow.sale.dto.CreateSaleRequest;
 import com.creditflow.sale.dto.SaleResponse;
 import com.creditflow.sale.service.CreditSaleService;
+import com.creditflow.shop.repository.ShopRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -53,9 +55,12 @@ public class LegacyImportService {
     private final ProductRepository productRepository;
     private final CreditSaleService creditSaleService;
     private final PaymentService paymentService;
+    private final CurrentShopContext currentShopContext;
+    private final ShopRepository shopRepository;
 
     @Transactional
     public ImportReport importLegacySales(MultipartFile file, boolean dryRun) {
+        Long targetShopId = currentShopContext.shopIdForCreation();
         LegacyImportParser.ParseResult parsed = parser.parse(file);
         List<ImportReport.RowError> errors = new ArrayList<>(parsed.errors());
         List<LegacyRow> rows = parsed.rows();
@@ -106,7 +111,7 @@ public class LegacyImportService {
             throw new BusinessRuleException("Le fichier ne contient aucune ligne exploitable.");
         }
 
-        return applyImport(rows, parsed.totalRows(), preview, customerIsNew, productIsNew);
+        return applyImport(rows, parsed.totalRows(), preview, customerIsNew, productIsNew, targetShopId);
     }
 
     // ------------------------------------------------------------------
@@ -115,16 +120,17 @@ public class LegacyImportService {
     private ImportReport applyImport(List<LegacyRow> rows, int totalRows,
                                      List<ImportReport.RowPreview> preview,
                                      Map<String, Boolean> customerIsNew,
-                                     Map<String, Boolean> productIsNew) {
+                                     Map<String, Boolean> productIsNew,
+                                     Long targetShopId) {
         Map<String, Customer> customersByPhone = new HashMap<>();
         Map<String, Product> productsByName = new HashMap<>();
         int payments = 0;
 
         for (LegacyRow row : rows) {
             Customer customer = customersByPhone.computeIfAbsent(row.phone(),
-                    phone -> resolveCustomer(row));
+                    phone -> resolveCustomer(row, targetShopId));
             Product product = productsByName.computeIfAbsent(
-                    row.productName().toLowerCase(Locale.ROOT), key -> resolveProduct(row));
+                    row.productName().toLowerCase(Locale.ROOT), key -> resolveProduct(row, targetShopId));
 
             SaleResponse sale = creditSaleService.create(new CreateSaleRequest(
                     customer.getId(), product.getId(), row.totalPrice(), row.downPayment(),
@@ -151,21 +157,30 @@ public class LegacyImportService {
                 "Reprise terminee : %d contrat(s) importe(s).".formatted(rows.size()));
     }
 
-    private Customer resolveCustomer(LegacyRow row) {
-        return customerRepository.findByPhone(row.phone())
-                .orElseGet(() -> customerRepository.save(Customer.builder()
-                        .firstName(row.firstName())
-                        .lastName(row.lastName())
-                        .phone(row.phone())
-                        .address(row.address())
-                        .cniNumber(row.cniNumber())
-                        .profession(row.profession())
-                        .notes("Client repris depuis l'ancien suivi papier")
-                        .active(true)
-                        .build()));
+    private Customer resolveCustomer(LegacyRow row, Long targetShopId) {
+        Optional<Customer> existing = customerRepository.findByPhone(row.phone());
+        if (existing.isPresent()) {
+            Customer customer = existing.get();
+            if (!customer.getShop().getId().equals(targetShopId)) {
+                throw new BusinessRuleException(
+                        "Le telephone %s appartient deja a un client d'une autre boutique".formatted(row.phone()));
+            }
+            return customer;
+        }
+        return customerRepository.save(Customer.builder()
+                .firstName(row.firstName())
+                .lastName(row.lastName())
+                .phone(row.phone())
+                .address(row.address())
+                .cniNumber(row.cniNumber())
+                .profession(row.profession())
+                .notes("Client repris depuis l'ancien suivi papier")
+                .active(true)
+                .shop(shopRepository.getReferenceById(targetShopId))
+                .build());
     }
 
-    private Product resolveProduct(LegacyRow row) {
+    private Product resolveProduct(LegacyRow row, Long targetShopId) {
         return findProductByName(row.productName())
                 .orElseGet(() -> productRepository.save(Product.builder()
                         .name(row.productName())
@@ -175,6 +190,7 @@ public class LegacyImportService {
                         .stock(0)
                         .description("Produit cree automatiquement lors de la reprise")
                         .status(ProductStatus.OUT_OF_STOCK)
+                        .shop(shopRepository.getReferenceById(targetShopId))
                         .build()));
     }
 
