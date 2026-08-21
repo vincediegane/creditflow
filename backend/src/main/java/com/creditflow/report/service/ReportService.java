@@ -1,5 +1,7 @@
 package com.creditflow.report.service;
 
+import com.creditflow.auth.domain.User;
+import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.notification.dto.LateCustomerResponse;
 import com.creditflow.notification.service.LateCustomerService;
 import com.creditflow.payment.domain.Payment;
@@ -7,8 +9,10 @@ import com.creditflow.payment.repository.PaymentRepository;
 import com.creditflow.report.dto.ReportData;
 import com.creditflow.report.dto.ReportType;
 import com.creditflow.sale.domain.CreditSale;
+import com.creditflow.sale.domain.Installment;
 import com.creditflow.sale.domain.SaleStatus;
 import com.creditflow.sale.repository.CreditSaleRepository;
+import com.creditflow.sale.repository.InstallmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,20 +23,31 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ReportService {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final String UNASSIGNED_PROFESSION = "Non renseignee";
+    private static final String UNASSIGNED_SELLER = "Non attribue";
 
     private final PaymentRepository paymentRepository;
     private final CreditSaleRepository saleRepository;
     private final LateCustomerService lateCustomerService;
+    private final InstallmentRepository installmentRepository;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
-    public ReportData build(ReportType type, LocalDate from, LocalDate to) {
+    public ReportData build(ReportType type, LocalDate from, LocalDate to,
+                             String profession, BigDecimal minAmount, BigDecimal maxAmount) {
         return switch (type) {
             case DAILY_PAYMENTS -> payments(ReportType.DAILY_PAYMENTS, "Paiements du jour",
                     defaultDate(from), defaultDate(from));
@@ -45,6 +60,8 @@ public class ReportService {
             }
             case LATE_CUSTOMERS -> lateCustomers();
             case OUTSTANDING -> outstanding();
+            case DEFAULT_RATE -> defaultRate(profession, minAmount, maxAmount);
+            case SELLER_PERFORMANCE -> sellerPerformance();
         };
     }
 
@@ -181,6 +198,197 @@ public class ReportService {
                         new ReportData.Total("Total finance", totalFinanced, ReportData.ColumnType.MONEY),
                         new ReportData.Total("Reste a recuperer", totalRemaining, ReportData.ColumnType.MONEY)),
                 LocalDateTime.now());
+    }
+
+    private ReportData defaultRate(String profession, BigDecimal minAmount, BigDecimal maxAmount) {
+        String normalizedFilter = profession == null || profession.isBlank() ? null : profession.trim();
+
+        List<CreditSale> sales = saleRepository.findAllDetailed().stream()
+                .filter(s -> s.getStatus() == SaleStatus.ACTIVE)
+                .filter(s -> minAmount == null || s.getTotalPrice().compareTo(minAmount) >= 0)
+                .filter(s -> maxAmount == null || s.getTotalPrice().compareTo(maxAmount) <= 0)
+                .filter(s -> normalizedFilter == null
+                        || normalizeProfession(s.getCustomer().getProfession()).equalsIgnoreCase(normalizedFilter))
+                .toList();
+
+        LateInstallments late = lateInstallments();
+        Set<Long> lateSaleIds = late.saleIds();
+        Map<Long, BigDecimal> lateAmountBySale = late.amountBySale();
+
+        Map<String, List<CreditSale>> byProfession = sales.stream()
+                .collect(Collectors.groupingBy(s -> normalizeProfession(s.getCustomer().getProfession())));
+
+        List<Map.Entry<String, List<CreditSale>>> sortedEntries = byProfession.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey(String.CASE_INSENSITIVE_ORDER))
+                .toList();
+
+        List<List<Object>> rows = new ArrayList<>();
+        long totalContracts = 0;
+        long totalLate = 0;
+        BigDecimal totalLateAmount = BigDecimal.ZERO;
+        BigDecimal totalRemaining = BigDecimal.ZERO;
+
+        for (Map.Entry<String, List<CreditSale>> entry : sortedEntries) {
+            List<CreditSale> group = entry.getValue();
+            long lateCount = group.stream().filter(s -> lateSaleIds.contains(s.getId())).count();
+            BigDecimal lateAmount = group.stream()
+                    .filter(s -> lateSaleIds.contains(s.getId()))
+                    .map(s -> lateAmountBySale.getOrDefault(s.getId(), BigDecimal.ZERO))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal remaining = group.stream()
+                    .map(CreditSale::getRemainingAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            rows.add(List.of(
+                    entry.getKey(),
+                    group.size(),
+                    lateCount,
+                    defaultRateText(lateCount, group.size()),
+                    lateAmount,
+                    remaining));
+
+            totalContracts += group.size();
+            totalLate += lateCount;
+            totalLateAmount = totalLateAmount.add(lateAmount);
+            totalRemaining = totalRemaining.add(remaining);
+        }
+
+        return new ReportData(
+                ReportType.DEFAULT_RATE,
+                "Taux de defaut par profession",
+                "Au " + LocalDate.now().format(DATE),
+                List.of(
+                        ReportData.Column.text("Profession"),
+                        ReportData.Column.number("Contrats actifs"),
+                        ReportData.Column.number("Contrats en retard"),
+                        ReportData.Column.text("Taux de defaut"),
+                        ReportData.Column.money("Montant en retard"),
+                        ReportData.Column.money("Reste a payer")),
+                rows,
+                List.of(
+                        new ReportData.Total("Professions", (long) sortedEntries.size(), ReportData.ColumnType.NUMBER),
+                        new ReportData.Total("Contrats actifs", totalContracts, ReportData.ColumnType.NUMBER),
+                        new ReportData.Total("Contrats en retard", totalLate, ReportData.ColumnType.NUMBER),
+                        new ReportData.Total("Taux de defaut global", defaultRateText(totalLate, totalContracts),
+                                ReportData.ColumnType.TEXT),
+                        new ReportData.Total("Montant en retard", totalLateAmount, ReportData.ColumnType.MONEY),
+                        new ReportData.Total("Reste a payer", totalRemaining, ReportData.ColumnType.MONEY)),
+                LocalDateTime.now());
+    }
+
+    private ReportData sellerPerformance() {
+        Map<String, String> fullNameByUsername = userRepository.findAll().stream()
+                .collect(Collectors.toMap(User::getUsername, User::getFullName, (a, b) -> a));
+
+        List<CreditSale> sales = saleRepository.findAllDetailed().stream()
+                .filter(s -> s.getStatus() != SaleStatus.CANCELLED)
+                .toList();
+
+        LateInstallments late = lateInstallments();
+        Set<Long> lateSaleIds = late.saleIds();
+
+        Map<String, List<CreditSale>> bySeller = sales.stream()
+                .collect(Collectors.groupingBy(s -> sellerLabel(s.getCreatedBy(), fullNameByUsername)));
+
+        record SellerLine(String seller, List<CreditSale> group, BigDecimal financed, BigDecimal paid,
+                           BigDecimal remaining, long lateCount) {
+        }
+
+        List<SellerLine> lines = bySeller.entrySet().stream()
+                .map(entry -> {
+                    List<CreditSale> group = entry.getValue();
+                    BigDecimal financed = group.stream()
+                            .map(CreditSale::getFinancedAmount)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal paid = group.stream()
+                            .map(CreditSale::getAmountPaid)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal remaining = group.stream()
+                            .map(CreditSale::getRemainingAmount)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    long lateCount = group.stream().filter(s -> lateSaleIds.contains(s.getId())).count();
+                    return new SellerLine(entry.getKey(), group, financed, paid, remaining, lateCount);
+                })
+                .sorted((a, b) -> {
+                    int cmp = b.paid().compareTo(a.paid());
+                    return cmp != 0 ? cmp : a.seller().compareToIgnoreCase(b.seller());
+                })
+                .toList();
+
+        List<List<Object>> rows = new ArrayList<>();
+        long totalContracts = 0;
+        BigDecimal totalFinanced = BigDecimal.ZERO;
+        BigDecimal totalPaid = BigDecimal.ZERO;
+        BigDecimal totalRemaining = BigDecimal.ZERO;
+
+        for (SellerLine line : lines) {
+            rows.add(List.of(
+                    line.seller(),
+                    line.group().size(),
+                    line.financed(),
+                    line.paid(),
+                    line.remaining(),
+                    line.lateCount(),
+                    defaultRateText(line.lateCount(), line.group().size())));
+
+            totalContracts += line.group().size();
+            totalFinanced = totalFinanced.add(line.financed());
+            totalPaid = totalPaid.add(line.paid());
+            totalRemaining = totalRemaining.add(line.remaining());
+        }
+
+        return new ReportData(
+                ReportType.SELLER_PERFORMANCE,
+                "Performance vendeur",
+                "Au " + LocalDate.now().format(DATE),
+                List.of(
+                        ReportData.Column.text("Vendeur"),
+                        ReportData.Column.number("Contrats"),
+                        ReportData.Column.money("Montant finance"),
+                        ReportData.Column.money("Montant encaisse"),
+                        ReportData.Column.money("Reste a recouvrer"),
+                        ReportData.Column.number("Contrats en retard"),
+                        ReportData.Column.text("Taux de defaut")),
+                rows,
+                List.of(
+                        new ReportData.Total("Vendeurs", (long) lines.size(), ReportData.ColumnType.NUMBER),
+                        new ReportData.Total("Contrats", totalContracts, ReportData.ColumnType.NUMBER),
+                        new ReportData.Total("Montant finance total", totalFinanced, ReportData.ColumnType.MONEY),
+                        new ReportData.Total("Montant encaisse total", totalPaid, ReportData.ColumnType.MONEY),
+                        new ReportData.Total("Reste a recouvrer total", totalRemaining, ReportData.ColumnType.MONEY)),
+                LocalDateTime.now());
+    }
+
+    private record LateInstallments(Set<Long> saleIds, Map<Long, BigDecimal> amountBySale) {
+    }
+
+    private LateInstallments lateInstallments() {
+        Set<Long> saleIds = new HashSet<>();
+        Map<Long, BigDecimal> amountBySale = new HashMap<>();
+        for (Installment installment : installmentRepository.findLate(LocalDate.now())) {
+            Long saleId = installment.getSale().getId();
+            saleIds.add(saleId);
+            amountBySale.merge(saleId, installment.getRemaining(), BigDecimal::add);
+        }
+        return new LateInstallments(saleIds, amountBySale);
+    }
+
+    private String normalizeProfession(String raw) {
+        return raw == null || raw.isBlank() ? UNASSIGNED_PROFESSION : raw.trim();
+    }
+
+    private String sellerLabel(String createdBy, Map<String, String> fullNameByUsername) {
+        if (createdBy == null) {
+            return UNASSIGNED_SELLER;
+        }
+        return fullNameByUsername.getOrDefault(createdBy, UNASSIGNED_SELLER);
+    }
+
+    private String defaultRateText(long lateCount, long totalCount) {
+        if (totalCount == 0) {
+            return "0,0 %";
+        }
+        return String.format(Locale.FRANCE, "%.1f %%", lateCount * 100.0 / totalCount);
     }
 
     private LocalDate defaultDate(LocalDate date) {

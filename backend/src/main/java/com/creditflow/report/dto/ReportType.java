@@ -8,5 +8,9 @@ public enum ReportType {
     /** Clients en retard. */
     LATE_CUSTOMERS,
     /** Creances restantes. */
-    OUTSTANDING
+    OUTSTANDING,
+    /** Taux de defaut par profession. */
+    DEFAULT_RATE,
+    /** Performance vendeur. */
+    SELLER_PERFORMANCE
 }
