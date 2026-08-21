@@ -35,6 +35,9 @@ import type {
   SalePreview,
   SaleStatus,
   CreateSalePayload,
+  Shop,
+  ShopPayload,
+  ShopSummary,
   StockMovement,
   StockReception,
   StockReceptionPayload,
@@ -75,6 +78,7 @@ export const authApi = {
   logout: () => api.post('/auth/logout').then(() => undefined),
   changePassword: (payload: ChangePasswordPayload) =>
     api.put<User>('/auth/password', payload).then((r) => r.data),
+  accessibleShops: () => api.get<ShopSummary[]>('/auth/shops').then((r) => r.data),
 };
 
 /* --------------------------- Reprise de données --------------------------- */
@@ -282,6 +286,19 @@ export const usersApi = {
     api.post<UserAccount>('/users', payload).then((r) => r.data),
   setEnabled: (id: number, enabled: boolean) =>
     api.patch<UserAccount>(`/users/${id}/status`, { enabled }).then((r) => r.data),
+  updateShops: (id: number, shopIds: number[]) =>
+    api.patch<UserAccount>(`/users/${id}/shops`, { shopIds }).then((r) => r.data),
+};
+
+/* ------------------------------ Boutiques ----------------------------- */
+
+export const shopsApi = {
+  list: () => api.get<Shop[]>('/shops').then((r) => r.data),
+  get: (id: number) => api.get<Shop>(`/shops/${id}`).then((r) => r.data),
+  create: (payload: ShopPayload) => api.post<Shop>('/shops', payload).then((r) => r.data),
+  update: (id: number, payload: ShopPayload) =>
+    api.put<Shop>(`/shops/${id}`, payload).then((r) => r.data),
+  remove: (id: number) => api.delete(`/shops/${id}`).then(() => undefined),
 };
 
 /* ------------------------------ Recherche --------------------------- */

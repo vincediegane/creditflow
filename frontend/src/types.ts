@@ -12,6 +12,29 @@ export interface PageResponse<T> {
 
 export type Role = 'ADMIN' | 'SELLER';
 
+export interface Shop {
+  id: number;
+  name: string;
+  address?: string;
+  phone?: string;
+  active: boolean;
+  createdAt: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface ShopPayload {
+  name: string;
+  address?: string;
+  phone?: string;
+  active?: boolean;
+}
+
+export interface ShopSummary {
+  id: number;
+  name: string;
+}
+
 export interface User {
   id: number;
   username: string;
@@ -19,6 +42,7 @@ export interface User {
   role: Role;
   /** Impose l'écran de changement de mot de passe avant toute autre action. */
   mustChangePassword: boolean;
+  shops: ShopSummary[];
 }
 
 export interface UserAccount {
@@ -28,6 +52,7 @@ export interface UserAccount {
   role: Role;
   enabled: boolean;
   mustChangePassword: boolean;
+  shops: ShopSummary[];
 }
 
 export interface CreateUserPayload {
@@ -35,6 +60,7 @@ export interface CreateUserPayload {
   password: string;
   fullName: string;
   role: Role;
+  shopIds?: number[];
 }
 
 export interface ChangePasswordPayload {
@@ -87,6 +113,7 @@ export interface AuthResponse {
   tokenType: string;
   expiresAt: string;
   user: User;
+  accessibleShops: ShopSummary[];
 }
 
 export interface Customer {
@@ -387,6 +414,8 @@ export interface DashboardMetrics {
 
 export interface Dashboard {
   referenceDate: string;
+  consolidated: boolean;
+  accessibleShops: ShopSummary[];
   metrics: DashboardMetrics;
   todayPayments: Payment[];
   upcomingInstallments: Installment[];

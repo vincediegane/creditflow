@@ -28,6 +28,7 @@ import { errorMessage } from '../api/client';
 import { reportsApi } from '../api/endpoints';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
+import { useShop } from '../context/ShopContext';
 import type { ReportType } from '../types';
 import { formatDateTime, formatMoney, formatNumber, today } from '../utils/format';
 
@@ -39,6 +40,7 @@ const REPORTS: { value: ReportType; label: string; needsDate: boolean }[] = [
 ];
 
 export default function ReportsPage() {
+  const { activeShopId, accessibleShops } = useShop();
   const [type, setType] = useState<ReportType>('DAILY_PAYMENTS');
   const [date, setDate] = useState(today());
   const [downloading, setDownloading] = useState(false);
@@ -105,6 +107,18 @@ export default function ReportsPage() {
           </Stack>
         }
       />
+
+      {accessibleShops.length > 1 && (
+        <Chip
+          sx={{ mb: 2 }}
+          color={activeShopId ? 'primary' : 'secondary'}
+          label={
+            activeShopId
+              ? `Boutique : ${accessibleShops.find((s) => s.id === activeShopId)?.name ?? ''}`
+              : `Vue consolidée (${accessibleShops.length} boutiques)`
+          }
+        />
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
