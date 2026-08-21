@@ -6,6 +6,7 @@ import { CssBaseline, ThemeProvider } from '@mui/material';
 
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
+import { ShopProvider } from './context/ShopContext';
 import { theme } from './theme';
 
 const queryClient = new QueryClient({
@@ -25,7 +26,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            <App />
+            <ShopProvider>
+              <App />
+            </ShopProvider>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

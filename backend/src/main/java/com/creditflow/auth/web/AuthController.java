@@ -5,6 +5,7 @@ import com.creditflow.auth.dto.ChangePasswordRequest;
 import com.creditflow.auth.dto.LoginRequest;
 import com.creditflow.auth.dto.UserResponse;
 import com.creditflow.auth.service.AuthService;
+import com.creditflow.shop.dto.ShopSummary;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -39,6 +42,12 @@ public class AuthController {
     @Operation(summary = "Profil de l'utilisateur connecte")
     public ResponseEntity<UserResponse> me(@AuthenticationPrincipal UserDetails principal) {
         return ResponseEntity.ok(authService.currentUser(principal.getUsername()));
+    }
+
+    @GetMapping("/shops")
+    @Operation(summary = "Boutiques accessibles a l'utilisateur connecte")
+    public ResponseEntity<List<ShopSummary>> accessibleShops() {
+        return ResponseEntity.ok(authService.accessibleShops());
     }
 
     @PutMapping("/password")

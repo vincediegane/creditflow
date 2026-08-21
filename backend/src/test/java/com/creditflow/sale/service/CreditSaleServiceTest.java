@@ -3,6 +3,7 @@ package com.creditflow.sale.service;
 import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.common.storage.FileStorageService;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.service.CustomerService;
@@ -29,6 +30,8 @@ import com.creditflow.sale.mapper.SaleMapper;
 import com.creditflow.sale.repository.CreditSaleRepository;
 import com.creditflow.sale.repository.InstallmentRepository;
 import com.creditflow.sale.repository.SaleAttachmentRepository;
+import com.creditflow.shop.domain.Shop;
+import com.creditflow.shop.repository.ShopRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -95,20 +98,28 @@ class CreditSaleServiceTest {
     @Mock
     private FileStorageService fileStorageService;
 
+    @Mock
+    private CurrentShopContext currentShopContext;
+
+    @Mock
+    private ShopRepository shopRepository;
+
     @InjectMocks
     private CreditSaleService creditSaleService;
 
     private CreditSale sale;
+    private Shop shop;
 
     @BeforeEach
     void setUp() {
         when(penaltySettingsService.current()).thenReturn(PenaltySettings.builder()
                 .id(1L).enabled(false).rateType(PenaltyRateType.FIXED)
                 .rate(java.math.BigDecimal.ZERO).period(PenaltyPeriod.DAY).build());
-        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").build();
-        Product product = Product.builder().id(1L).name("iPhone 13").build();
+        shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
+        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(shop).build();
+        Product product = Product.builder().id(1L).name("iPhone 13").shop(shop).build();
         sale = CreditSale.builder()
-                .id(1L).reference("VC-2026-00001").customer(customer).product(product)
+                .id(1L).reference("VC-2026-00001").customer(customer).product(product).shop(shop)
                 .totalPrice(new BigDecimal("150000")).downPayment(BigDecimal.ZERO)
                 .financedAmount(new BigDecimal("150000")).installmentCount(3)
                 .monthlyAmount(new BigDecimal("50000")).amountPaid(BigDecimal.ZERO)
@@ -117,6 +128,8 @@ class CreditSaleServiceTest {
                 .installments(new ArrayList<>())
                 .build();
         when(saleRepository.findDetailById(1L)).thenReturn(Optional.of(sale));
+        when(currentShopContext.shopIdForCreation()).thenReturn(1L);
+        when(shopRepository.getReferenceById(1L)).thenReturn(shop);
     }
 
     @Test
@@ -201,9 +214,56 @@ class CreditSaleServiceTest {
         assertThat(saved.getGuarantorCniNumber()).isNull();
     }
 
+    @Test
+    @DisplayName("refuse la creation si le client n'appartient pas a la boutique cible")
+    void createRejectsWhenCustomerBelongsToAnotherShop() {
+        Shop otherShop = Shop.builder().id(2L).name("Autre boutique").active(true).build();
+        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(otherShop).build();
+        Product product = Product.builder().id(1L).name("iPhone 13").shop(shop).build();
+        when(customerService.getEntity(1L)).thenReturn(customer);
+        when(productService.getEntity(1L)).thenReturn(product);
+
+        CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
+                null, null, 3, LocalDate.now(), null, null, null, null, null);
+
+        assertThatThrownBy(() -> creditSaleService.create(request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("boutique cible");
+    }
+
+    @Test
+    @DisplayName("refuse la creation si le produit n'appartient pas a la boutique cible")
+    void createRejectsWhenProductBelongsToAnotherShop() {
+        Shop otherShop = Shop.builder().id(2L).name("Autre boutique").active(true).build();
+        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(shop).build();
+        Product product = Product.builder().id(1L).name("iPhone 13").shop(otherShop).build();
+        when(customerService.getEntity(1L)).thenReturn(customer);
+        when(productService.getEntity(1L)).thenReturn(product);
+
+        CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
+                null, null, 3, LocalDate.now(), null, null, null, null, null);
+
+        assertThatThrownBy(() -> creditSaleService.create(request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("boutique cible");
+    }
+
+    @Test
+    @DisplayName("cree le contrat quand le client et le produit correspondent a la boutique cible")
+    void createSucceedsWhenCustomerAndProductMatchTargetShop() {
+        stubCreationDependencies();
+
+        CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
+                null, null, 3, LocalDate.now(), null, null, null, null, null);
+
+        creditSaleService.create(request);
+
+        assertThat(capturedSale().getShop().getId()).isEqualTo(1L);
+    }
+
     private void stubCreationDependencies() {
-        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").build();
-        Product product = Product.builder().id(1L).name("iPhone 13").stock(0).build();
+        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(shop).build();
+        Product product = Product.builder().id(1L).name("iPhone 13").stock(0).shop(shop).build();
         when(customerService.getEntity(1L)).thenReturn(customer);
         when(productService.getEntity(1L)).thenReturn(product);
         when(scheduleGenerator.interestAmount(any(), any(), any())).thenReturn(BigDecimal.ZERO);
@@ -230,14 +290,15 @@ class CreditSaleServiceTest {
         ProductRepository productRepository = org.mockito.Mockito.mock(ProductRepository.class);
         ProductMapper productMapper = org.mockito.Mockito.mock(ProductMapper.class);
         StockMovementRepository stockMovementRepository = org.mockito.Mockito.mock(StockMovementRepository.class);
-        ProductService realProductService =
-                new ProductService(productRepository, productMapper, auditLogService, stockMovementRepository);
+        ProductService realProductService = new ProductService(productRepository, productMapper, auditLogService,
+                stockMovementRepository, currentShopContext, shopRepository);
 
-        Product product = Product.builder().id(1L).name("iPhone 13").stock(3).status(ProductStatus.ACTIVE).build();
+        Product product = Product.builder().id(1L).name("iPhone 13").stock(3).status(ProductStatus.ACTIVE)
+                .shop(shop).build();
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(productRepository.save(any(Product.class))).thenAnswer(i -> i.getArgument(0));
 
-        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").build();
+        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(shop).build();
         when(customerService.getEntity(1L)).thenReturn(customer);
 
         when(scheduleGenerator.interestAmount(any(), any(), any())).thenReturn(BigDecimal.ZERO);
@@ -255,7 +316,8 @@ class CreditSaleServiceTest {
 
         CreditSaleService service = new CreditSaleService(saleRepository, installmentRepository, paymentRepository,
                 saleAttachmentRepository, customerService, realProductService, scheduleGenerator, saleMapper,
-                paymentMapper, auditLogService, penaltySettingsService, fileStorageService);
+                paymentMapper, auditLogService, penaltySettingsService, fileStorageService, currentShopContext,
+                shopRepository);
 
         CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, 3, LocalDate.now(), null, null, null, null, null);

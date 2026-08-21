@@ -11,6 +11,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
@@ -92,5 +94,39 @@ class SaleSpecificationsTest {
         verify(root).get("guarantorPhone");
         verify(cb, atLeastOnce()).coalesce(path, "");
         verify(cb, atLeastOnce()).like(expression, "%770001122%");
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Test
+    @DisplayName("inShops ne genere aucun predicat pour une liste nulle ou vide")
+    void inShopsReturnsNullWhenEmpty() {
+        assertThat(SaleSpecifications.inShops(null)).isNull();
+        assertThat(SaleSpecifications.inShops(List.of())).isNull();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Test
+    @DisplayName("inShops filtre sur shop.id via IN")
+    void inShopsFiltersOnShopId() {
+        Root<CreditSale> root = mock(Root.class);
+        CriteriaQuery<?> query = mock(CriteriaQuery.class);
+        CriteriaBuilder cb = mock(CriteriaBuilder.class);
+        Path shopPath = mock(Path.class);
+        Path idPath = mock(Path.class);
+        Predicate predicate = mock(Predicate.class);
+
+        when(root.get("shop")).thenReturn(shopPath);
+        when(shopPath.get("id")).thenReturn(idPath);
+        when(idPath.in(List.of(1L, 2L))).thenReturn(predicate);
+
+        Specification<CreditSale> specification = SaleSpecifications.inShops(List.of(1L, 2L));
+        assertThat(specification).isNotNull();
+
+        Predicate result = specification.toPredicate(root, query, cb);
+
+        assertThat(result).isEqualTo(predicate);
+        verify(root).get("shop");
+        verify(shopPath).get("id");
+        verify(idPath).in(List.of(1L, 2L));
     }
 }

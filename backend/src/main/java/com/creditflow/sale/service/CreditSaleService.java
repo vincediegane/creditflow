@@ -5,6 +5,7 @@ import com.creditflow.common.dto.PageResponse;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.repository.Specs;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.common.storage.FileStorageService;
 import com.creditflow.common.util.Money;
 import com.creditflow.customer.domain.Customer;
@@ -32,6 +33,7 @@ import com.creditflow.sale.repository.CreditSaleRepository;
 import com.creditflow.sale.repository.InstallmentRepository;
 import com.creditflow.sale.repository.SaleAttachmentRepository;
 import com.creditflow.sale.repository.SaleSpecifications;
+import com.creditflow.shop.repository.ShopRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -63,6 +65,8 @@ public class CreditSaleService {
     private final AuditLogService auditLogService;
     private final PenaltySettingsService penaltySettingsService;
     private final FileStorageService fileStorageService;
+    private final CurrentShopContext currentShopContext;
+    private final ShopRepository shopRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<SaleResponse> search(String search, SaleStatus status, Long customerId, Pageable pageable) {
@@ -72,7 +76,8 @@ public class CreditSaleService {
                 Specs.combine(
                         SaleSpecifications.matches(search),
                         SaleSpecifications.hasStatus(status),
-                        SaleSpecifications.forCustomer(customerId)),
+                        SaleSpecifications.forCustomer(customerId),
+                        SaleSpecifications.inShops(currentShopContext.accessibleShopIds())),
                 pageable);
         return PageResponse.of(page, sale -> saleMapper.toResponse(sale, sale.getInstallments(), today, settings));
     }
@@ -109,8 +114,10 @@ public class CreditSaleService {
 
     @Transactional(readOnly = true)
     public CreditSale getEntity(Long id) {
-        return saleRepository.findDetailById(id)
+        CreditSale sale = saleRepository.findDetailById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Contrat", id));
+        currentShopContext.assertAccessible(sale.getShop().getId());
+        return sale;
     }
 
     /** Simulation d'echeancier, sans persistance. */
@@ -140,8 +147,18 @@ public class CreditSaleService {
 
     @Transactional
     public SaleResponse create(CreateSaleRequest request) {
+        Long targetShopId = currentShopContext.shopIdForCreation();
         Customer customer = customerService.getEntity(request.customerId());
         Product product = productService.getEntity(request.productId());
+
+        if (!customer.getShop().getId().equals(targetShopId)) {
+            throw new BusinessRuleException(
+                    "Le client selectionne n'appartient pas a la boutique cible de cette vente");
+        }
+        if (!product.getShop().getId().equals(targetShopId)) {
+            throw new BusinessRuleException(
+                    "Le produit selectionne n'appartient pas a la boutique cible de cette vente");
+        }
 
         BigDecimal totalPrice = Money.round(request.totalPrice());
         BigDecimal downPayment = Money.round(Money.nullToZero(request.downPayment()));
@@ -158,6 +175,7 @@ public class CreditSaleService {
                 .reference("TMP-" + UUID.randomUUID().toString().substring(0, 8))
                 .customer(customer)
                 .product(product)
+                .shop(shopRepository.getReferenceById(targetShopId))
                 .totalPrice(totalPrice)
                 .interestRate(request.interestRate())
                 .interestAmount(interestAmount)

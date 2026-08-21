@@ -6,6 +6,8 @@ import com.creditflow.sale.domain.SaleStatus;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
+
 public final class SaleSpecifications {
 
     private SaleSpecifications() {
@@ -43,5 +45,12 @@ public final class SaleSpecifications {
             return null;
         }
         return (root, query, cb) -> cb.equal(root.get("customer").get("id"), customerId);
+    }
+
+    public static Specification<CreditSale> inShops(List<Long> shopIds) {
+        if (shopIds == null || shopIds.isEmpty()) {
+            return null;
+        }
+        return (root, query, cb) -> root.get("shop").get("id").in(shopIds);
     }
 }

@@ -40,10 +40,13 @@ public interface CreditSaleRepository extends JpaRepository<CreditSale, Long>,
             """)
     List<CreditSale> findByCustomer(@Param("customerId") Long customerId);
 
-    long countByStatus(SaleStatus status);
+    long countByStatusAndShop_IdIn(SaleStatus status, List<Long> shopIds);
 
-    @Query("SELECT COALESCE(SUM(s.remainingAmount), 0) FROM CreditSale s WHERE s.status = :status")
-    BigDecimal sumRemainingByStatus(@Param("status") SaleStatus status);
+    long countByShop_IdIn(List<Long> shopIds);
+
+    @Query("SELECT COALESCE(SUM(s.remainingAmount), 0) FROM CreditSale s "
+            + "WHERE s.status = :status AND s.shop.id IN :shopIds")
+    BigDecimal sumRemainingByStatusForShops(@Param("status") SaleStatus status, @Param("shopIds") List<Long> shopIds);
 
     @Query("SELECT COALESCE(SUM(s.totalPrice), 0) FROM CreditSale s WHERE s.customer.id = :customerId")
     BigDecimal sumTotalPriceByCustomer(@Param("customerId") Long customerId);
@@ -51,6 +54,7 @@ public interface CreditSaleRepository extends JpaRepository<CreditSale, Long>,
     @Query("SELECT COALESCE(SUM(s.remainingAmount), 0) FROM CreditSale s WHERE s.customer.id = :customerId")
     BigDecimal sumRemainingByCustomer(@Param("customerId") Long customerId);
 
-    @Query("SELECT s FROM CreditSale s JOIN FETCH s.customer JOIN FETCH s.product ORDER BY s.createdAt DESC")
-    List<CreditSale> findAllDetailed();
+    @Query("SELECT s FROM CreditSale s JOIN FETCH s.customer JOIN FETCH s.product "
+            + "WHERE s.shop.id IN :shopIds ORDER BY s.createdAt DESC")
+    List<CreditSale> findAllDetailedForShops(@Param("shopIds") List<Long> shopIds);
 }

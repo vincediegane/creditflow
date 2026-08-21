@@ -34,11 +34,11 @@ public class LateCustomerService {
     private final PenaltyCalculator penaltyCalculator;
 
     @Transactional(readOnly = true)
-    public List<LateCustomerResponse> lateCustomers() {
+    public List<LateCustomerResponse> lateCustomers(List<Long> shopIds) {
         LocalDate today = LocalDate.now();
         PenaltySettings settings = penaltySettingsService.current();
 
-        Map<Long, List<Installment>> byCustomer = installmentRepository.findLate(today).stream()
+        Map<Long, List<Installment>> byCustomer = installmentRepository.findLateForShops(today, shopIds).stream()
                 .collect(Collectors.groupingBy(i -> i.getSale().getCustomer().getId(),
                         LinkedHashMap::new, Collectors.toList()));
 

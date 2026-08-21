@@ -2,6 +2,8 @@ package com.creditflow.payment.service;
 
 import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.exception.BusinessRuleException;
+import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.common.util.Money;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.payment.domain.Payment;
@@ -22,6 +24,7 @@ import com.creditflow.sale.domain.InstallmentStatus;
 import com.creditflow.sale.domain.SaleStatus;
 import com.creditflow.sale.repository.CreditSaleRepository;
 import com.creditflow.sale.repository.InstallmentRepository;
+import com.creditflow.shop.domain.Shop;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -76,6 +79,9 @@ class PaymentServiceTest {
 
     @Spy
     private PaymentAllocator paymentAllocator = new PaymentAllocator(new PenaltyCalculator());
+
+    @Mock
+    private CurrentShopContext currentShopContext;
 
     @InjectMocks
     private PaymentService paymentService;
@@ -228,23 +234,35 @@ class PaymentServiceTest {
         assertThat(first.getPenaltyPaid()).isEqualByComparingTo("2000");
     }
 
+    @Test
+    @DisplayName("findBySale refuse un contrat hors du perimetre boutique")
+    void findBySaleRejectsWhenSaleNotAccessible() {
+        org.mockito.Mockito.doThrow(new ResourceNotFoundException("Ressource introuvable"))
+                .when(currentShopContext).assertAccessible(1L);
+
+        assertThatThrownBy(() -> paymentService.findBySale(1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
     private PaymentRequest request(BigDecimal amount) {
         return new PaymentRequest(1L, amount, LocalDate.now(), PaymentMethod.CASH, "REF-1", null);
     }
 
     private CreditSale buildSale() {
+        Shop shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
         Customer customer = Customer.builder()
-                .id(1L).firstName("Amadou").lastName("Diallo").phone("770000001").active(true).build();
+                .id(1L).firstName("Amadou").lastName("Diallo").phone("770000001").active(true).shop(shop).build();
         Product product = Product.builder()
                 .id(1L).name("iPhone 13").category("Telephone")
                 .cashPrice(new BigDecimal("450000")).creditPrice(new BigDecimal("560000"))
-                .stock(3).build();
+                .stock(3).shop(shop).build();
 
         CreditSale creditSale = CreditSale.builder()
                 .id(1L)
                 .reference("VC-2026-00001")
                 .customer(customer)
                 .product(product)
+                .shop(shop)
                 .totalPrice(new BigDecimal("150000"))
                 .downPayment(Money.ZERO)
                 .financedAmount(new BigDecimal("150000"))

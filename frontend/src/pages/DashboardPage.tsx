@@ -33,10 +33,12 @@ import PaymentDialog from '../components/PaymentDialog';
 import ReminderDialog from '../components/ReminderDialog';
 import StatCard from '../components/StatCard';
 import StatusChip from '../components/StatusChip';
+import { useShop } from '../context/ShopContext';
 import { PAYMENT_METHOD_LABELS, formatDate, formatMoney, formatNumber } from '../utils/format';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { activeShopId, accessibleShops } = useShop();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentSaleId, setPaymentSaleId] = useState<number | null>(null);
   const [reminder, setReminder] = useState<{ customerId: number; name: string; phone: string } | null>(
@@ -80,6 +82,18 @@ export default function DashboardPage() {
           </Stack>
         }
       />
+
+      {data && accessibleShops.length > 1 && (
+        <Chip
+          sx={{ mb: 2 }}
+          color={data.consolidated ? 'secondary' : 'primary'}
+          label={
+            data.consolidated
+              ? `Vue consolidée (${accessibleShops.length} boutiques)`
+              : `Boutique : ${accessibleShops.find((s) => s.id === activeShopId)?.name ?? ''}`
+          }
+        />
+      )}
 
       {isLoading && <LinearProgress sx={{ mb: 2 }} />}
       {isError && <Alert severity="error">Impossible de charger le tableau de bord.</Alert>}

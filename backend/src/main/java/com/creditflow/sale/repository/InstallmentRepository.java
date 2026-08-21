@@ -31,9 +31,11 @@ public interface InstallmentRepository extends JpaRepository<Installment, Long>,
             JOIN FETCH s.product
             WHERE i.status <> com.creditflow.sale.domain.InstallmentStatus.PAID
               AND i.dueDate BETWEEN :from AND :to
+              AND s.shop.id IN :shopIds
             ORDER BY i.dueDate ASC
             """)
-    List<Installment> findUpcoming(@Param("from") LocalDate from, @Param("to") LocalDate to);
+    List<Installment> findUpcomingForShops(@Param("from") LocalDate from, @Param("to") LocalDate to,
+                                            @Param("shopIds") List<Long> shopIds);
 
     @Query("""
             SELECT i FROM Installment i
@@ -42,16 +44,18 @@ public interface InstallmentRepository extends JpaRepository<Installment, Long>,
             JOIN FETCH s.product
             WHERE i.status <> com.creditflow.sale.domain.InstallmentStatus.PAID
               AND i.dueDate < :reference
+              AND s.shop.id IN :shopIds
             ORDER BY i.dueDate ASC
             """)
-    List<Installment> findLate(@Param("reference") LocalDate reference);
+    List<Installment> findLateForShops(@Param("reference") LocalDate reference, @Param("shopIds") List<Long> shopIds);
 
     @Query("""
             SELECT COUNT(i) FROM Installment i
             WHERE i.status <> com.creditflow.sale.domain.InstallmentStatus.PAID
               AND i.dueDate < :reference
+              AND i.sale.shop.id IN :shopIds
             """)
-    long countLate(@Param("reference") LocalDate reference);
+    long countLateForShops(@Param("reference") LocalDate reference, @Param("shopIds") List<Long> shopIds);
 
     @Query("""
             SELECT COUNT(i) FROM Installment i
@@ -65,6 +69,7 @@ public interface InstallmentRepository extends JpaRepository<Installment, Long>,
             SELECT COALESCE(SUM(i.amount - i.amountPaid), 0) FROM Installment i
             WHERE i.status <> com.creditflow.sale.domain.InstallmentStatus.PAID
               AND i.dueDate < :reference
+              AND i.sale.shop.id IN :shopIds
             """)
-    BigDecimal sumLateAmount(@Param("reference") LocalDate reference);
+    BigDecimal sumLateAmountForShops(@Param("reference") LocalDate reference, @Param("shopIds") List<Long> shopIds);
 }

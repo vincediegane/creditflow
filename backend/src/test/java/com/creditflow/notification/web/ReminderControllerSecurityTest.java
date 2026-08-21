@@ -1,5 +1,6 @@
 package com.creditflow.notification.web;
 
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.config.AbstractWebMvcSecurityTest;
 import com.creditflow.notification.dto.BulkReminderResponse;
 import com.creditflow.notification.dto.ReminderResponse;
@@ -39,6 +40,9 @@ class ReminderControllerSecurityTest extends AbstractWebMvcSecurityTest {
 
     @MockBean
     private NotificationChannel notificationChannel;
+
+    @MockBean
+    private CurrentShopContext currentShopContext;
 
     @Test
     @WithMockUser(roles = "SELLER")

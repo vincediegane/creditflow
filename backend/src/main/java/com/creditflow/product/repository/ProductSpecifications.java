@@ -6,6 +6,8 @@ import com.creditflow.product.domain.ProductStatus;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
+
 public final class ProductSpecifications {
 
     private ProductSpecifications() {
@@ -33,5 +35,12 @@ public final class ProductSpecifications {
             return null;
         }
         return (root, query, cb) -> cb.equal(root.get("status"), status);
+    }
+
+    public static Specification<Product> inShops(List<Long> shopIds) {
+        if (shopIds == null || shopIds.isEmpty()) {
+            return null;
+        }
+        return (root, query, cb) -> root.get("shop").get("id").in(shopIds);
     }
 }

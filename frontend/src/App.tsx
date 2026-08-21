@@ -18,6 +18,7 @@ import ReportsPage from './pages/ReportsPage';
 import SaleDetailPage from './pages/SaleDetailPage';
 import SalesPage from './pages/SalesPage';
 import SearchPage from './pages/SearchPage';
+import ShopsPage from './pages/ShopsPage';
 import StockReceptionsPage from './pages/StockReceptionsPage';
 import SuppliersPage from './pages/SuppliersPage';
 import UsersPage from './pages/UsersPage';
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="recherche" element={<SearchPage />} />
           <Route element={<RequireRole role="ADMIN" />}>
             <Route path="utilisateurs" element={<UsersPage />} />
+            <Route path="boutiques" element={<ShopsPage />} />
             <Route path="parametres/penalites" element={<PenaltySettingsPage />} />
           </Route>
         </Route>

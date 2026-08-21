@@ -1,5 +1,6 @@
 package com.creditflow.dashboard.service;
 
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.customer.repository.CustomerRepository;
 import com.creditflow.dashboard.dto.DashboardResponse;
 import com.creditflow.notification.dto.LateCustomerResponse;
@@ -40,37 +41,41 @@ public class DashboardService {
     private final PaymentMapper paymentMapper;
     private final InstallmentService installmentService;
     private final LateCustomerService lateCustomerService;
+    private final CurrentShopContext currentShopContext;
 
     @Transactional(readOnly = true)
     public DashboardResponse overview() {
+        List<Long> shopIds = currentShopContext.resolveReadFilter();
         LocalDate today = LocalDate.now();
         YearMonth month = YearMonth.from(today);
         LocalDate monthStart = month.atDay(1);
         LocalDate monthEnd = month.atEndOfMonth();
 
-        List<PaymentResponse> todayPayments = paymentRepository.findBetween(today, today).stream()
+        List<PaymentResponse> todayPayments = paymentRepository.findBetweenForShops(today, today, shopIds).stream()
                 .map(paymentMapper::toResponse)
                 .toList();
 
-        List<InstallmentResponse> upcoming = installmentService.upcoming(UPCOMING_WINDOW_DAYS);
-        List<LateCustomerResponse> lateCustomers = lateCustomerService.lateCustomers();
+        List<InstallmentResponse> upcoming = installmentService.upcomingForShops(UPCOMING_WINDOW_DAYS, shopIds);
+        List<LateCustomerResponse> lateCustomers = lateCustomerService.lateCustomers(shopIds);
 
         DashboardResponse.Metrics metrics = new DashboardResponse.Metrics(
-                customerRepository.count(),
-                saleRepository.count(),
-                saleRepository.countByStatus(SaleStatus.ACTIVE),
-                saleRepository.countByStatus(SaleStatus.COMPLETED),
-                saleRepository.sumRemainingByStatus(SaleStatus.ACTIVE),
-                paymentRepository.sumBetween(monthStart, monthEnd),
-                paymentRepository.sumBetween(today, today),
-                paymentRepository.countBetween(today, today),
+                customerRepository.countByShop_IdIn(shopIds),
+                saleRepository.countByShop_IdIn(shopIds),
+                saleRepository.countByStatusAndShop_IdIn(SaleStatus.ACTIVE, shopIds),
+                saleRepository.countByStatusAndShop_IdIn(SaleStatus.COMPLETED, shopIds),
+                saleRepository.sumRemainingByStatusForShops(SaleStatus.ACTIVE, shopIds),
+                paymentRepository.sumBetweenForShops(monthStart, monthEnd, shopIds),
+                paymentRepository.sumBetweenForShops(today, today, shopIds),
+                paymentRepository.countBetweenForShops(today, today, shopIds),
                 lateCustomers.size(),
-                installmentRepository.countLate(today),
-                nullToZero(installmentRepository.sumLateAmount(today)),
+                installmentRepository.countLateForShops(today, shopIds),
+                nullToZero(installmentRepository.sumLateAmountForShops(today, shopIds)),
                 upcoming.size());
 
         return new DashboardResponse(
                 today,
+                shopIds.size() > 1,
+                currentShopContext.accessibleShops(),
                 metrics,
                 todayPayments,
                 upcoming.stream().limit(UPCOMING_LIMIT).toList(),

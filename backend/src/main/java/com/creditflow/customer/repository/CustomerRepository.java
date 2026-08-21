@@ -14,11 +14,13 @@ public interface CustomerRepository extends JpaRepository<Customer, Long>, JpaSp
 
     @Query("""
             SELECT c FROM Customer c
-            WHERE LOWER(CONCAT(c.firstName, ' ', c.lastName)) LIKE LOWER(CONCAT('%', :search, '%'))
-               OR c.phone LIKE CONCAT('%', :search, '%')
+            WHERE (LOWER(CONCAT(c.firstName, ' ', c.lastName)) LIKE LOWER(CONCAT('%', :search, '%'))
+               OR c.phone LIKE CONCAT('%', :search, '%'))
+              AND c.shop.id IN :shopIds
             ORDER BY c.lastName ASC
             """)
-    List<Customer> quickSearch(@Param("search") String search, Pageable pageable);
+    List<Customer> quickSearch(@Param("search") String search, @Param("shopIds") List<Long> shopIds,
+                                Pageable pageable);
 
     Optional<Customer> findByPhone(String phone);
 
@@ -29,4 +31,6 @@ public interface CustomerRepository extends JpaRepository<Customer, Long>, JpaSp
     boolean existsByCniNumber(String cniNumber);
 
     boolean existsByCniNumberAndIdNot(String cniNumber, Long id);
+
+    long countByShop_IdIn(List<Long> shopIds);
 }

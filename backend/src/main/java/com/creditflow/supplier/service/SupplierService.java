@@ -19,6 +19,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * Les fournisseurs restent volontairement communs a toutes les boutiques : un
+ * grossiste est un tiers externe (table sans {@code shop_id}, ticket #8) et sa
+ * fiche n'expose aucune donnee commerciale. Le cloisonnement par boutique porte
+ * sur les receptions de stock, qui referencent les produits d'une boutique.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor

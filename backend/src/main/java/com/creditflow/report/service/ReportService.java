@@ -2,6 +2,7 @@ package com.creditflow.report.service;
 
 import com.creditflow.auth.domain.User;
 import com.creditflow.auth.repository.UserRepository;
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.notification.dto.LateCustomerResponse;
 import com.creditflow.notification.service.LateCustomerService;
 import com.creditflow.payment.domain.Payment;
@@ -44,29 +45,31 @@ public class ReportService {
     private final LateCustomerService lateCustomerService;
     private final InstallmentRepository installmentRepository;
     private final UserRepository userRepository;
+    private final CurrentShopContext currentShopContext;
 
     @Transactional(readOnly = true)
     public ReportData build(ReportType type, LocalDate from, LocalDate to,
                              String profession, BigDecimal minAmount, BigDecimal maxAmount) {
+        List<Long> shopIds = currentShopContext.resolveReadFilter();
         return switch (type) {
             case DAILY_PAYMENTS -> payments(ReportType.DAILY_PAYMENTS, "Paiements du jour",
-                    defaultDate(from), defaultDate(from));
+                    defaultDate(from), defaultDate(from), shopIds);
             case MONTHLY_PAYMENTS -> {
                 LocalDate reference = defaultDate(from);
                 YearMonth month = YearMonth.from(reference);
                 yield payments(ReportType.MONTHLY_PAYMENTS, "Paiements du mois",
                         from == null ? month.atDay(1) : from,
-                        to == null ? month.atEndOfMonth() : to);
+                        to == null ? month.atEndOfMonth() : to, shopIds);
             }
-            case LATE_CUSTOMERS -> lateCustomers();
-            case OUTSTANDING -> outstanding();
-            case DEFAULT_RATE -> defaultRate(profession, minAmount, maxAmount);
-            case SELLER_PERFORMANCE -> sellerPerformance();
+            case LATE_CUSTOMERS -> lateCustomers(shopIds);
+            case OUTSTANDING -> outstanding(shopIds);
+            case DEFAULT_RATE -> defaultRate(profession, minAmount, maxAmount, shopIds);
+            case SELLER_PERFORMANCE -> sellerPerformance(shopIds);
         };
     }
 
-    private ReportData payments(ReportType type, String title, LocalDate from, LocalDate to) {
-        List<Payment> payments = paymentRepository.findBetween(from, to);
+    private ReportData payments(ReportType type, String title, LocalDate from, LocalDate to, List<Long> shopIds) {
+        List<Payment> payments = paymentRepository.findBetweenForShops(from, to, shopIds);
 
         List<List<Object>> rows = payments.stream()
                 .map(p -> List.<Object>of(
@@ -105,8 +108,8 @@ public class ReportService {
                 LocalDateTime.now());
     }
 
-    private ReportData lateCustomers() {
-        List<LateCustomerResponse> late = lateCustomerService.lateCustomers();
+    private ReportData lateCustomers(List<Long> shopIds) {
+        List<LateCustomerResponse> late = lateCustomerService.lateCustomers(shopIds);
 
         List<List<Object>> rows = late.stream()
                 .map(l -> List.<Object>of(
@@ -149,8 +152,8 @@ public class ReportService {
                 LocalDateTime.now());
     }
 
-    private ReportData outstanding() {
-        List<CreditSale> sales = saleRepository.findAllDetailed().stream()
+    private ReportData outstanding(List<Long> shopIds) {
+        List<CreditSale> sales = saleRepository.findAllDetailedForShops(shopIds).stream()
                 .filter(s -> s.getStatus() == SaleStatus.ACTIVE)
                 .toList();
 
@@ -200,10 +203,11 @@ public class ReportService {
                 LocalDateTime.now());
     }
 
-    private ReportData defaultRate(String profession, BigDecimal minAmount, BigDecimal maxAmount) {
+    private ReportData defaultRate(String profession, BigDecimal minAmount, BigDecimal maxAmount,
+                                   List<Long> shopIds) {
         String normalizedFilter = profession == null || profession.isBlank() ? null : profession.trim();
 
-        List<CreditSale> sales = saleRepository.findAllDetailed().stream()
+        List<CreditSale> sales = saleRepository.findAllDetailedForShops(shopIds).stream()
                 .filter(s -> s.getStatus() == SaleStatus.ACTIVE)
                 .filter(s -> minAmount == null || s.getTotalPrice().compareTo(minAmount) >= 0)
                 .filter(s -> maxAmount == null || s.getTotalPrice().compareTo(maxAmount) <= 0)
@@ -211,7 +215,7 @@ public class ReportService {
                         || normalizeProfession(s.getCustomer().getProfession()).equalsIgnoreCase(normalizedFilter))
                 .toList();
 
-        LateInstallments late = lateInstallments();
+        LateInstallments late = lateInstallments(shopIds);
         Set<Long> lateSaleIds = late.saleIds();
         Map<Long, BigDecimal> lateAmountBySale = late.amountBySale();
 
@@ -276,15 +280,15 @@ public class ReportService {
                 LocalDateTime.now());
     }
 
-    private ReportData sellerPerformance() {
+    private ReportData sellerPerformance(List<Long> shopIds) {
         Map<String, String> fullNameByUsername = userRepository.findAll().stream()
                 .collect(Collectors.toMap(User::getUsername, User::getFullName, (a, b) -> a));
 
-        List<CreditSale> sales = saleRepository.findAllDetailed().stream()
+        List<CreditSale> sales = saleRepository.findAllDetailedForShops(shopIds).stream()
                 .filter(s -> s.getStatus() != SaleStatus.CANCELLED)
                 .toList();
 
-        LateInstallments late = lateInstallments();
+        LateInstallments late = lateInstallments(shopIds);
         Set<Long> lateSaleIds = late.saleIds();
 
         Map<String, List<CreditSale>> bySeller = sales.stream()
@@ -362,10 +366,10 @@ public class ReportService {
     private record LateInstallments(Set<Long> saleIds, Map<Long, BigDecimal> amountBySale) {
     }
 
-    private LateInstallments lateInstallments() {
+    private LateInstallments lateInstallments(List<Long> shopIds) {
         Set<Long> saleIds = new HashSet<>();
         Map<Long, BigDecimal> amountBySale = new HashMap<>();
-        for (Installment installment : installmentRepository.findLate(LocalDate.now())) {
+        for (Installment installment : installmentRepository.findLateForShops(LocalDate.now(), shopIds)) {
             Long saleId = installment.getSale().getId();
             saleIds.add(saleId);
             amountBySale.merge(saleId, installment.getRemaining(), BigDecimal::add);

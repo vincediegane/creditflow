@@ -3,6 +3,7 @@ package com.creditflow.sale.domain;
 import com.creditflow.common.domain.Auditable;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.product.domain.Product;
+import com.creditflow.shop.domain.Shop;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -54,6 +55,10 @@ public class CreditSale extends Auditable {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "shop_id", nullable = false)
+    private Shop shop;
 
     @Column(name = "total_price", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalPrice;

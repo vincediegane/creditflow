@@ -6,6 +6,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
@@ -13,7 +14,9 @@ import {
   DialogTitle,
   Grid,
   LinearProgress,
+  ListItemText,
   MenuItem,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -22,11 +25,13 @@ import {
   TableRow,
   TextField,
   Tooltip,
+  Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import StoreIcon from '@mui/icons-material/Store';
 
 import { errorMessage } from '../api/client';
-import { usersApi } from '../api/endpoints';
+import { shopsApi, usersApi } from '../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyRow from '../components/EmptyRow';
@@ -38,6 +43,7 @@ const EMPTY_FORM: CreateUserPayload = {
   password: '',
   fullName: '',
   role: 'SELLER',
+  shopIds: [],
 };
 
 export default function UsersPage() {
@@ -47,12 +53,19 @@ export default function UsersPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [toDisable, setToDisable] = useState<UserAccount | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingShopsFor, setEditingShopsFor] = useState<UserAccount | null>(null);
+  const [shopsError, setShopsError] = useState<string | null>(null);
+  const [selectedShopIds, setSelectedShopIds] = useState<number[]>([]);
 
-  const { register, control, handleSubmit, reset, formState } = useForm<CreateUserPayload>({
+  const { register, control, handleSubmit, reset, watch, formState } = useForm<CreateUserPayload>({
     defaultValues: EMPTY_FORM,
   });
 
+  const role = watch('role');
+
   const query = useQuery({ queryKey: ['users'], queryFn: usersApi.list });
+  const shopsQuery = useQuery({ queryKey: ['shops'], queryFn: shopsApi.list });
+  const shops = shopsQuery.data ?? [];
 
   const createMutation = useMutation({
     mutationFn: (payload: CreateUserPayload) => usersApi.create(payload),
@@ -75,6 +88,15 @@ export default function UsersPage() {
     },
   });
 
+  const shopsMutation = useMutation({
+    mutationFn: ({ id, shopIds }: { id: number; shopIds: number[] }) => usersApi.updateShops(id, shopIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setEditingShopsFor(null);
+    },
+    onError: (err) => setShopsError(errorMessage(err, "L'assignation des boutiques n'a pas pu être enregistrée")),
+  });
+
   const openCreate = () => {
     setError(null);
     reset(EMPTY_FORM);
@@ -85,10 +107,32 @@ export default function UsersPage() {
     setDialogOpen(false);
   };
 
+  const openShopsEdit = (account: UserAccount) => {
+    setShopsError(null);
+    setSelectedShopIds(account.shops.map((s) => s.id));
+    setEditingShopsFor(account);
+  };
+
   const submit = handleSubmit((values) => {
     setError(null);
+    if (values.role === 'SELLER' && !(values.shopIds && values.shopIds.length > 0)) {
+      setError('Un vendeur doit être rattaché à au moins une boutique');
+      return;
+    }
     createMutation.mutate(values);
   });
+
+  const submitShops = () => {
+    if (!editingShopsFor) {
+      return;
+    }
+    if (editingShopsFor.role === 'SELLER' && selectedShopIds.length === 0) {
+      setShopsError('Un vendeur doit être rattaché à au moins une boutique');
+      return;
+    }
+    setShopsError(null);
+    shopsMutation.mutate({ id: editingShopsFor.id, shopIds: selectedShopIds });
+  };
 
   const rows = query.data ?? [];
 
@@ -120,6 +164,7 @@ export default function UsersPage() {
                 <TableCell>Nom complet</TableCell>
                 <TableCell>Identifiant</TableCell>
                 <TableCell>Rôle</TableCell>
+                <TableCell>Boutiques</TableCell>
                 <TableCell>Statut</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -133,6 +178,17 @@ export default function UsersPage() {
                     <TableCell>{account.username}</TableCell>
                     <TableCell>{account.role === 'ADMIN' ? 'Administrateur' : 'Vendeur'}</TableCell>
                     <TableCell>
+                      {account.shops.length ? (
+                        account.shops.map((shop) => (
+                          <Chip key={shop.id} label={shop.name} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
+                        ))
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          {account.role === 'ADMIN' ? 'Toutes (super-admin)' : '—'}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <Chip
                         label={account.enabled ? 'Actif' : 'Désactivé'}
                         color={account.enabled ? 'success' : 'default'}
@@ -141,6 +197,11 @@ export default function UsersPage() {
                       />
                     </TableCell>
                     <TableCell align="right">
+                      <Tooltip title="Modifier les boutiques">
+                        <Button size="small" startIcon={<StoreIcon />} onClick={() => openShopsEdit(account)}>
+                          Boutiques
+                        </Button>
+                      </Tooltip>
                       {account.enabled ? (
                         <Tooltip
                           title={isSelf ? 'Vous ne pouvez pas désactiver votre propre compte' : ''}
@@ -169,7 +230,7 @@ export default function UsersPage() {
                 );
               })}
               {!rows.length && !query.isLoading && (
-                <EmptyRow colSpan={5} message="Aucun compte utilisateur" />
+                <EmptyRow colSpan={6} message="Aucun compte utilisateur" />
               )}
             </TableBody>
           </Table>
@@ -223,6 +284,42 @@ export default function UsersPage() {
                 error={Boolean(formState.errors.password)}
               />
             </Grid>
+            <Grid item xs={12}>
+              <Controller
+                name="shopIds"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    {...field}
+                    multiple
+                    fullWidth
+                    displayEmpty
+                    value={field.value ?? []}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      field.onChange(typeof value === 'string' ? value.split(',').map(Number) : value);
+                    }}
+                    renderValue={(selected) =>
+                      (selected as number[]).length
+                        ? shops
+                            .filter((shop) => (selected as number[]).includes(shop.id))
+                            .map((shop) => shop.name)
+                            .join(', ')
+                        : role === 'SELLER'
+                          ? 'Boutique(s) — obligatoire pour un vendeur'
+                          : 'Boutique(s) — laisser vide pour super-admin'
+                    }
+                  >
+                    {shops.map((shop) => (
+                      <MenuItem key={shop.id} value={shop.id}>
+                        <Checkbox checked={(field.value ?? []).includes(shop.id)} />
+                        <ListItemText primary={shop.name} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                )}
+              />
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
@@ -231,6 +328,51 @@ export default function UsersPage() {
           </Button>
           <Button variant="contained" onClick={submit} disabled={createMutation.isPending}>
             Créer le compte
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(editingShopsFor)} onClose={() => setEditingShopsFor(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Boutiques de {editingShopsFor?.fullName}</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 0 }}>
+            {shopsError && (
+              <Grid item xs={12}>
+                <Alert severity="error">{shopsError}</Alert>
+              </Grid>
+            )}
+            <Grid item xs={12}>
+              <Select
+                multiple
+                fullWidth
+                value={selectedShopIds}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedShopIds(typeof value === 'string' ? value.split(',').map(Number) : value);
+                }}
+                renderValue={(selected) =>
+                  shops
+                    .filter((shop) => (selected as number[]).includes(shop.id))
+                    .map((shop) => shop.name)
+                    .join(', ')
+                }
+              >
+                {shops.map((shop) => (
+                  <MenuItem key={shop.id} value={shop.id}>
+                    <Checkbox checked={selectedShopIds.includes(shop.id)} />
+                    <ListItemText primary={shop.name} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setEditingShopsFor(null)} color="inherit">
+            Annuler
+          </Button>
+          <Button variant="contained" onClick={submitShops} disabled={shopsMutation.isPending}>
+            Enregistrer
           </Button>
         </DialogActions>
       </Dialog>

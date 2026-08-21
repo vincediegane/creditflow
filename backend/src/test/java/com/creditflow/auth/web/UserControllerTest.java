@@ -38,7 +38,7 @@ class UserControllerTest extends AbstractWebMvcSecurityTest {
     private UserService userService;
 
     private UserResponse response() {
-        return new UserResponse(4L, "fatou.diop", "Fatou Diop", "SELLER", true, true);
+        return new UserResponse(4L, "fatou.diop", "Fatou Diop", "SELLER", true, true, List.of());
     }
 
     @Test
@@ -53,7 +53,7 @@ class UserControllerTest extends AbstractWebMvcSecurityTest {
         mockMvc.perform(post("/api/users")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(
-                                new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER))))
+                                new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of(1L)))))
                 .andExpect(status().isForbidden());
     }
 
@@ -82,7 +82,7 @@ class UserControllerTest extends AbstractWebMvcSecurityTest {
         mockMvc.perform(post("/api/users")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(
-                                new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER))))
+                                new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of(1L)))))
                 .andExpect(status().isCreated());
     }
 
@@ -94,6 +94,26 @@ class UserControllerTest extends AbstractWebMvcSecurityTest {
         mockMvc.perform(patch("/api/users/1/status")
                         .contentType("application/json")
                         .content("{\"enabled\": false}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "SELLER")
+    void sellerCannotUpdateShops() throws Exception {
+        mockMvc.perform(patch("/api/users/1/shops")
+                        .contentType("application/json")
+                        .content("{\"shopIds\": [1]}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminCanUpdateShops() throws Exception {
+        when(userService.updateShops(anyLong(), any(), anyString())).thenReturn(response());
+
+        mockMvc.perform(patch("/api/users/1/shops")
+                        .contentType("application/json")
+                        .content("{\"shopIds\": [1]}"))
                 .andExpect(status().isOk());
     }
 }

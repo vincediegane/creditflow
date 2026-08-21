@@ -13,6 +13,7 @@ import {
   ListItemText,
   Menu,
   MenuItem,
+  Select,
   Toolbar,
   Tooltip,
   Typography,
@@ -34,9 +35,11 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import PercentIcon from '@mui/icons-material/Percent';
 import PersonIcon from '@mui/icons-material/Person';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import StoreIcon from '@mui/icons-material/Store';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 
 import { useAuth } from '../auth/AuthContext';
+import { useShop } from '../context/ShopContext';
 import { initials } from '../utils/format';
 import ChangePasswordDialog from './ChangePasswordDialog';
 import GlobalSearchBar from './GlobalSearchBar';
@@ -56,6 +59,7 @@ const NAV_ITEMS = [
   { to: '/rapports', label: 'Rapports', icon: <AssessmentIcon /> },
   { to: '/reprise', label: 'Reprise de données', icon: <UploadFileIcon /> },
   { to: '/utilisateurs', label: 'Utilisateurs', icon: <PersonIcon />, adminOnly: true },
+  { to: '/boutiques', label: 'Boutiques', icon: <StoreIcon />, adminOnly: true },
   { to: '/parametres/penalites', label: 'Pénalités', icon: <PercentIcon />, adminOnly: true },
 ];
 
@@ -64,6 +68,7 @@ export default function AppLayout() {
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { activeShopId, setActiveShopId, accessibleShops, canSelectShop } = useShop();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -149,6 +154,25 @@ export default function AppLayout() {
           </IconButton>
 
           <GlobalSearchBar />
+
+          {canSelectShop && (
+            <Select
+              size="small"
+              value={activeShopId ?? 0}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                setActiveShopId(value === 0 ? null : value);
+              }}
+              sx={{ minWidth: 200 }}
+            >
+              <MenuItem value={0}>Vue consolidée (toutes boutiques)</MenuItem>
+              {accessibleShops.map((shop) => (
+                <MenuItem key={shop.id} value={shop.id}>
+                  {shop.name}
+                </MenuItem>
+              ))}
+            </Select>
+          )}
 
           <Box sx={{ flexGrow: 1 }} />
 
