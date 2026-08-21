@@ -12,12 +12,14 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -45,19 +47,27 @@ public class ReportController {
 
     @GetMapping("/{type}")
     @Operation(summary = "Consulter un rapport")
+    @PreAuthorize("#type != T(com.creditflow.report.dto.ReportType).SELLER_PERFORMANCE or hasRole('ADMIN')")
     public ReportData report(@PathVariable ReportType type,
                              @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return reportService.build(type, from, to);
+                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                             @RequestParam(required = false) String profession,
+                             @RequestParam(required = false) BigDecimal minAmount,
+                             @RequestParam(required = false) BigDecimal maxAmount) {
+        return reportService.build(type, from, to, profession, minAmount, maxAmount);
     }
 
     @GetMapping("/{type}/export")
     @Operation(summary = "Exporter un rapport au format pdf ou excel")
+    @PreAuthorize("#type != T(com.creditflow.report.dto.ReportType).SELLER_PERFORMANCE or hasRole('ADMIN')")
     public ResponseEntity<byte[]> export(
             @PathVariable ReportType type,
             @RequestParam(defaultValue = "pdf") String format,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String profession,
+            @RequestParam(required = false) BigDecimal minAmount,
+            @RequestParam(required = false) BigDecimal maxAmount) {
 
         Map<String, ReportExporter> byFormat = exporters.stream()
                 .collect(Collectors.toMap(ReportExporter::format, Function.identity()));
@@ -67,7 +77,7 @@ public class ReportController {
             throw new BusinessRuleException("Format d'export inconnu : " + format);
         }
 
-        ReportData data = reportService.build(type, from, to);
+        ReportData data = reportService.build(type, from, to, profession, minAmount, maxAmount);
         byte[] content = exporter.export(data);
 
         String filename = "%s-%s.%s".formatted(

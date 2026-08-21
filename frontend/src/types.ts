@@ -448,7 +448,13 @@ export interface BulkReminderResult {
   results: Reminder[];
 }
 
-export type ReportType = 'DAILY_PAYMENTS' | 'MONTHLY_PAYMENTS' | 'LATE_CUSTOMERS' | 'OUTSTANDING';
+export type ReportType =
+  | 'DAILY_PAYMENTS'
+  | 'MONTHLY_PAYMENTS'
+  | 'LATE_CUSTOMERS'
+  | 'OUTSTANDING'
+  | 'DEFAULT_RATE'
+  | 'SELLER_PERFORMANCE';
 
 export type ReportColumnType = 'TEXT' | 'NUMBER' | 'MONEY' | 'DATE';
 

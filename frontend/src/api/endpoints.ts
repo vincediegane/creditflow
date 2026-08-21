@@ -260,14 +260,18 @@ export const remindersApi = {
 
 /* ------------------------------- Rapports --------------------------- */
 
+type ReportParams = {
+  from?: string;
+  to?: string;
+  profession?: string;
+  minAmount?: number | string;
+  maxAmount?: number | string;
+};
+
 export const reportsApi = {
-  get: (type: ReportType, params: { from?: string; to?: string }) =>
+  get: (type: ReportType, params: ReportParams) =>
     api.get<ReportData>(`/reports/${type}`, { params }).then((r) => r.data),
-  download: async (
-    type: ReportType,
-    format: 'pdf' | 'excel',
-    params: { from?: string; to?: string },
-  ) => {
+  download: async (type: ReportType, format: 'pdf' | 'excel', params: ReportParams) => {
     const response = await api.get(`/reports/${type}/export`, {
       params: { ...params, format },
       responseType: 'blob',
