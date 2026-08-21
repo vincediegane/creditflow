@@ -2,6 +2,7 @@ package com.creditflow.auth.web;
 
 import com.creditflow.auth.dto.UserRequest;
 import com.creditflow.auth.dto.UserResponse;
+import com.creditflow.auth.dto.UserShopsRequest;
 import com.creditflow.auth.dto.UserStatusRequest;
 import com.creditflow.auth.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -53,5 +54,12 @@ public class UserController {
     public UserResponse setEnabled(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request,
                                    @AuthenticationPrincipal UserDetails principal) {
         return userService.setEnabled(id, request.enabled(), principal.getUsername());
+    }
+
+    @PatchMapping("/{id}/shops")
+    @Operation(summary = "Modifier les boutiques assignees a un compte")
+    public UserResponse updateShops(@PathVariable Long id, @Valid @RequestBody UserShopsRequest request,
+                                    @AuthenticationPrincipal UserDetails principal) {
+        return userService.updateShops(id, request.shopIds(), principal.getUsername());
     }
 }

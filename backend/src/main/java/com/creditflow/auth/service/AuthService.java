@@ -9,6 +9,8 @@ import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.auth.security.JwtService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.common.security.CurrentShopContext;
+import com.creditflow.shop.dto.ShopSummary;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -28,6 +31,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final CurrentShopContext currentShopContext;
 
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
@@ -40,7 +44,8 @@ public class AuthService {
         String token = jwtService.generateToken(user.getUsername(), user.getRole().name());
         log.info("Connexion reussie pour {}", user.getUsername());
 
-        return new AuthResponse(token, "Bearer", jwtService.expiryOf(token), toResponse(user));
+        return new AuthResponse(token, "Bearer", jwtService.expiryOf(token), toResponse(user),
+                currentShopContext.accessibleShops());
     }
 
     @Transactional(readOnly = true)
@@ -48,6 +53,12 @@ public class AuthService {
         return userRepository.findByUsernameIgnoreCase(username)
                 .map(AuthService::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+    }
+
+    /** Boutiques accessibles a l'utilisateur connecte, pour rafraichir le selecteur sans se reconnecter. */
+    @Transactional(readOnly = true)
+    public List<ShopSummary> accessibleShops() {
+        return currentShopContext.accessibleShops();
     }
 
     /**
@@ -76,7 +87,11 @@ public class AuthService {
     }
 
     private static UserResponse toResponse(User user) {
+        List<ShopSummary> shops = user.getShops().stream()
+                .map(s -> new ShopSummary(s.getId(), s.getName()))
+                .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
+                .toList();
         return new UserResponse(user.getId(), user.getUsername(), user.getFullName(),
-                user.getRole().name(), user.isMustChangePassword(), user.isEnabled());
+                user.getRole().name(), user.isMustChangePassword(), user.isEnabled(), shops);
     }
 }

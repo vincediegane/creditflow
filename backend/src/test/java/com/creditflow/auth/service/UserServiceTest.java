@@ -6,6 +6,8 @@ import com.creditflow.auth.dto.UserRequest;
 import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.shop.domain.Shop;
+import com.creditflow.shop.repository.ShopRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,17 +37,22 @@ class UserServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private ShopRepository shopRepository;
+
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     private UserService userService;
 
     private UserRequest request() {
-        return new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER);
+        return new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of(1L));
     }
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, shopRepository, passwordEncoder);
+        Shop shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
+        when(shopRepository.findById(1L)).thenReturn(Optional.of(shop));
     }
 
     @Test
@@ -115,5 +123,30 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.setEnabled(99L, false, "admin"))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("refuse un vendeur sans boutique assignee")
+    void rejectsSellerWithoutShop() {
+        UserRequest request = new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of());
+
+        assertThatThrownBy(() -> userService.create(request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("boutique");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("met a jour les boutiques assignees a un compte")
+    void updatesShops() {
+        User seller = User.builder().id(2L).username("fatou.diop").role(Role.SELLER).enabled(true).build();
+        when(userRepository.findById(2L)).thenReturn(Optional.of(seller));
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+        var response = userService.updateShops(2L, List.of(1L), "admin");
+
+        assertThat(response.shops()).hasSize(1);
+        assertThat(seller.getShops()).hasSize(1);
     }
 }

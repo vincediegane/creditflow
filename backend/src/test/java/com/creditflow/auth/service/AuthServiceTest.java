@@ -7,6 +7,7 @@ import com.creditflow.auth.dto.UserResponse;
 import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.auth.security.JwtService;
 import com.creditflow.common.exception.BusinessRuleException;
+import com.creditflow.common.security.CurrentShopContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,9 @@ class AuthServiceTest {
     @Mock
     private JwtService jwtService;
 
+    @Mock
+    private CurrentShopContext currentShopContext;
+
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     private AuthService authService;
@@ -49,7 +53,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         authService = new AuthService(authenticationManager, userRepository, jwtService,
-                passwordEncoder);
+                passwordEncoder, currentShopContext);
 
         user = User.builder()
                 .id(1L)
@@ -103,5 +107,18 @@ class AuthServiceTest {
     @DisplayName("le profil courant expose l'obligation de changement")
     void currentUserExposesTheObligation() {
         assertThat(authService.currentUser("admin").mustChangePassword()).isTrue();
+    }
+
+    @Test
+    @DisplayName("la connexion inclut les boutiques accessibles resolues apres authentification")
+    void loginIncludesAccessibleShops() {
+        java.util.List<com.creditflow.shop.dto.ShopSummary> shops =
+                java.util.List.of(new com.creditflow.shop.dto.ShopSummary(1L, "Boutique principale"));
+        when(currentShopContext.accessibleShops()).thenReturn(shops);
+        when(jwtService.generateToken("admin", "ADMIN")).thenReturn("token");
+
+        var response = authService.login(new com.creditflow.auth.dto.LoginRequest("admin", "MotDePasseInitial1"));
+
+        assertThat(response.accessibleShops()).isEqualTo(shops);
     }
 }
