@@ -45,7 +45,7 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public DashboardResponse overview() {
-        List<Long> shopIds = currentShopContext.accessibleShopIds();
+        List<Long> shopIds = currentShopContext.resolveReadFilter();
         LocalDate today = LocalDate.now();
         YearMonth month = YearMonth.from(today);
         LocalDate monthStart = month.atDay(1);
@@ -74,6 +74,8 @@ public class DashboardService {
 
         return new DashboardResponse(
                 today,
+                shopIds.size() > 1,
+                currentShopContext.accessibleShops(),
                 metrics,
                 todayPayments,
                 upcoming.stream().limit(UPCOMING_LIMIT).toList(),
