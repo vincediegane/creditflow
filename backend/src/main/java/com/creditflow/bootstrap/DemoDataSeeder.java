@@ -1,5 +1,6 @@
 package com.creditflow.bootstrap;
 
+import com.creditflow.auth.domain.Role;
 import com.creditflow.config.AppProperties;
 import com.creditflow.customer.dto.CustomerRequest;
 import com.creditflow.customer.dto.CustomerResponse;
@@ -15,12 +16,17 @@ import com.creditflow.product.service.ProductService;
 import com.creditflow.sale.dto.CreateSaleRequest;
 import com.creditflow.sale.dto.SaleResponse;
 import com.creditflow.sale.service.CreditSaleService;
+import com.creditflow.shop.domain.Shop;
+import com.creditflow.shop.repository.ShopRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -45,6 +51,7 @@ public class DemoDataSeeder {
 
     private final AppProperties properties;
     private final CustomerRepository customerRepository;
+    private final ShopRepository shopRepository;
     private final CustomerService customerService;
     private final ProductService productService;
     private final CreditSaleService creditSaleService;
@@ -70,16 +77,35 @@ public class DemoDataSeeder {
                 log.info("Donnees deja presentes : seeding ignore.");
                 return;
             }
+            List<Shop> shops = shopRepository.findAllByActiveTrueOrderByNameAsc();
+            if (shops.size() != 1) {
+                log.info("Installation multi-boutiques ({} boutiques actives) : seeding ignore.", shops.size());
+                return;
+            }
 
-            log.info("Generation des donnees de demonstration...");
-            List<CustomerResponse> customers = seedCustomers();
-            List<ProductResponse> products = seedProducts();
-            List<SaleResponse> sales = seedSales(customers, products);
-            int payments = seedPayments(sales);
+            // Les services de creation resolvent la boutique cible via CurrentShopContext, qui
+            // exige un utilisateur authentifie : le seeding s'execute sous l'identite technique
+            // de l'administrateur cree par AdminInitializer (@Order(1)).
+            authenticateAsAdmin();
+            try {
+                log.info("Generation des donnees de demonstration pour la boutique {}...", shops.get(0).getName());
+                List<CustomerResponse> customers = seedCustomers();
+                List<ProductResponse> products = seedProducts();
+                List<SaleResponse> sales = seedSales(customers, products);
+                int payments = seedPayments(sales);
 
-            log.info("Demonstration prete : {} clients, {} produits, {} contrats, {} paiements.",
-                    customers.size(), products.size(), sales.size(), payments);
+                log.info("Demonstration prete : {} clients, {} produits, {} contrats, {} paiements.",
+                        customers.size(), products.size(), sales.size(), payments);
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
         };
+    }
+
+    private void authenticateAsAdmin() {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                properties.getAdmin().getUsername(), null,
+                List.of(new SimpleGrantedAuthority("ROLE_" + Role.ADMIN.name()))));
     }
 
     private List<CustomerResponse> seedCustomers() {
