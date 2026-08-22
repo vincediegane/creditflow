@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   AppBar,
   Avatar,
+  Badge,
   Box,
   Divider,
   Drawer,
@@ -22,6 +23,8 @@ import {
 } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import CloudOffIcon from '@mui/icons-material/CloudOff';
+import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import DashboardIcon from '@mui/icons-material/SpaceDashboard';
 import EventIcon from '@mui/icons-material/EventAvailable';
 import GroupIcon from '@mui/icons-material/Group';
@@ -39,10 +42,12 @@ import StoreIcon from '@mui/icons-material/Store';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 
 import { useAuth } from '../auth/AuthContext';
+import { useOfflineQueue } from '../context/OfflineQueueContext';
 import { useShop } from '../context/ShopContext';
 import { initials } from '../utils/format';
 import ChangePasswordDialog from './ChangePasswordDialog';
 import GlobalSearchBar from './GlobalSearchBar';
+import OfflineBanner from './OfflineBanner';
 
 const DRAWER_WIDTH = 248;
 
@@ -69,6 +74,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { activeShopId, setActiveShopId, accessibleShops, canSelectShop } = useShop();
+  const { online, pendingCount, conflictCount } = useOfflineQueue();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -174,6 +180,19 @@ export default function AppLayout() {
             </Select>
           )}
 
+          {(!online || pendingCount + conflictCount > 0) && (
+            <Tooltip title="Paiements hors-ligne">
+              <IconButton onClick={() => navigate('/paiements')} aria-label="Paiements hors-ligne">
+                <Badge
+                  badgeContent={pendingCount + conflictCount}
+                  color={conflictCount ? 'error' : 'warning'}
+                >
+                  {online ? <CloudSyncIcon /> : <CloudOffIcon />}
+                </Badge>
+              </IconButton>
+            </Tooltip>
+          )}
+
           <Box sx={{ flexGrow: 1 }} />
 
           <Tooltip title="Compte">
@@ -236,6 +255,7 @@ export default function AppLayout() {
         }}
       >
         <Toolbar />
+        <OfflineBanner />
         <Outlet />
       </Box>
 

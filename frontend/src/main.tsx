@@ -6,6 +6,7 @@ import { CssBaseline, ThemeProvider } from '@mui/material';
 
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
+import { OfflineQueueProvider } from './context/OfflineQueueContext';
 import { ShopProvider } from './context/ShopContext';
 import { theme } from './theme';
 
@@ -27,7 +28,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <BrowserRouter>
           <AuthProvider>
             <ShopProvider>
-              <App />
+              <OfflineQueueProvider>
+                <App />
+              </OfflineQueueProvider>
             </ShopProvider>
           </AuthProvider>
         </BrowserRouter>
