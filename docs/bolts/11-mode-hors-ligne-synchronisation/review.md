@@ -2,139 +2,120 @@
 
 ## Verdict
 
-CHANGES_REQUESTED
+APPROVE
 
-Le travail est globalement de tres haute qualite et suit la spec quasi au mot pres sur les quatre
-phases (idempotence serveur, machine a etats de la file, integration UI, PWA). Backend et frontend
-compilent et tous les tests annonces passent reellement (voir Build/tests). Un defaut reel et
-demontrable subsiste neanmoins sur le point le plus sensible du ticket -- la garde anti double-tap de
-`PaymentDialog.tsx` cote hors-ligne -- qui rouvre exactement le risque de double encaissement que
-toute l'architecture (V12 + `clientRequestId`) vise a fermer. Voir Finding #1.
+Seconde et derniere passe, ciblee sur le commit correctif `f3c8bdb` (garde anti double-tap) et sa
+non-regression. Le reste du chantier (phases 1-4, idempotence serveur, machine a etats de la file,
+integration UI, PWA) a deja ete audite integralement en premiere revue et n'a pas ete retouche par ce
+commit (diff `020b90c..f3c8bdb` limite a `frontend/src/components/PaymentDialog.tsx`, 15
+insertions / 4 suppressions) : non repris ici.
 
-## Criteres d'acceptation
+## Finding initial (premiere revue) — statut : CORRIGE
+
+**Rappel du probleme** : `queuePendingPayment()` (chemin hors-ligne de `submit()`) n'etait protege par
+aucun etat "en cours". Un double-tap sur « Enregistrer hors-ligne » declenchait deux `submit()`, donc
+deux `clientRequestId` distincts (genere a l'interieur du callback), donc deux entrees IndexedDB non
+deduplicables, rejouees comme deux paiements legitimes distincts au retour du reseau — double
+encaissement reel, angle mort de l'idempotence serveur puisque les ID different par construction.
+
+**Verification du correctif** (lecture du fichier final post-`f3c8bdb`, pas seulement le diff) :
+
+1. `const [queuing, setQueuing] = useState(false);` ajoute (ligne 55).
+2. `queuePendingPayment()` (lignes 118-131) : `setQueuing(true)` est bien la toute premiere instruction
+   du corps de la fonction, synchrone, avant tout `await` — donc aucune fenetre ne subsiste entre
+   l'appel de la fonction et la pose de l'etat React (contrairement a un `setQueuing` place apres un
+   premier `await`, qui aurait laisse la faille ouverte). Le `try { await enqueuePayment(...); onSuccess?.(); onClose(); } finally { setQueuing(false); }`
+   couvre bien succes et echec de `enqueuePayment` (toute exception releve le `finally` avant de se
+   propager).
+3. Bouton « Enregistrer » : `disabled={mutation.isPending || queuing}` (ligne 314) — desormais
+   desactive pendant toute la duree de la mise en file, pas seulement pendant la mutation en ligne.
+4. **Point d'entree unique confirme independamment** : grep du fichier entier pour `<form`, `onSubmit`,
+   `onKeyDown`/`onKeyUp`/`onKeyPress` — aucune occurrence. Le composant n'a pas de balise `<form>` (le
+   formulaire react-hook-form est monte directement dans le `<Dialog>`/`<DialogContent>` de MUI), et
+   `onClick={submit}` sur le bouton (ligne 313) est le seul declencheur de `submit()`. Pas de
+   contournement par la touche Entree ni par un `onSubmit` cache.
+5. **Bonus (fenetre sur le chemin `onError`) verifie reel, pas seulement affirme** : `mutation.onError`
+   (lignes 148-156) appelle `void queuePendingPayment()` quand l'erreur reseau n'a pas de
+   `err.response` (backend injoignable alors que `navigator.onLine` est vrai). C'est la meme fonction,
+   donc la meme garde `queuing` s'applique : au moment ou `onError` se declenche, `mutation.isPending`
+   est deja retombe a `false` (la mutation est reglee), mais `queuing` passe a `true` des l'entree dans
+   `queuePendingPayment()` et maintient le bouton desactive le temps de l'ecriture IndexedDB — la
+   fenetre plus etroite decrite en premiere revue est bien fermee par le meme correctif.
+6. **Non-regression du chemin en ligne** : `mutation.isPending` n'est pas modifie dans son
+   fonctionnement ; `queuing` reste `false` sur tout le chemin en ligne reussi (jamais mis a `true` sauf
+   entree dans `queuePendingPayment`). Pas de risque de bouton bloque durablement : `queuing` repasse a
+   `false` dans le `finally`, y compris quand `onClose()` a deja ete appele juste avant dans le `try`
+   (le `PaymentDialog` reste monte entre deux ouvertures — verifie dans `PaymentsPage.tsx`,
+   `<PaymentDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />` — l'etat `open` bascule
+   sans demonter le composant, donc pas de `setState` post-demontage).
+
+**Conclusion** : le trou est reellement ferme, sur les deux chemins qui partagent
+`queuePendingPayment()`, sans regression identifiee sur le chemin en ligne existant.
+
+## Etendue reelle du diff correctif
+
+`git diff 020b90c..f3c8bdb --stat` :
+```
+ frontend/src/components/PaymentDialog.tsx | 19 +++++++++++++++----
+ 1 file changed, 15 insertions(+), 4 deletions(-)
+```
+Strictement localise au fichier attendu. `queue.ts`, `sync.ts`, le backend, les migrations Flyway :
+aucun n'apparait — conforme a l'engagement du codeur.
+
+## Test automatise manquant — limite acceptee, verifiee
+
+Le codeur affirme ne pas avoir pu ajouter de test automatise faute d'infrastructure de test de
+composants React dans ce depot. Verifie directement :
+- `frontend/package.json` : ni `@testing-library/react`, ni `jsdom` en dependance.
+- `frontend/vite.config.ts`, bloc `test` : `environment: 'node'` et surtout
+  `include: ['src/offline/**/*.test.ts']` — le runner Vitest n'inclut meme pas les fichiers hors de
+  `src/offline/`, donc un test de `PaymentDialog.tsx` ne serait pas execute sans modifier la
+  configuration globale du projet.
+- Seuls tests presents : `src/offline/__tests__/queue.test.ts` (7) et `sync.test.ts` (9), aucun test de
+  composant nulle part dans le repo.
+
+L'affirmation est donc exacte, pas une esquive. Etendre l'infrastructure de test (jsdom +
+Testing Library + elargissement de l'`include`) pour permettre un test de regression sur ce genre de
+garde UI serait une amelioration legitime, mais c'est un chantier d'outillage transverse qui depasse le
+perimetre d'un fix cible sur un ticket deja passe par une premiere correction — non bloquant ici.
+
+## Criteres d'acceptation du ticket #11
 
 | # | Critere | Statut |
 |---|---|---|
-| 1 | Paiement hors-ligne visible localement en « en attente », synchronise automatiquement au retour du reseau | Couvert -- `queue.ts`/`sync.ts`/`OfflineQueueContext` implementent exactement la machine a etats specifiee, testes (F1, F3, F8, F12) ; declencheurs (mount, `online`, `isAuthenticated`, minuteur 60s, bouton) tous presents dans `OfflineQueueContext.tsx`. Reserve : voir Finding #1 (double-tap non garde en hors-ligne). |
-| 2 | Conflit signale au vendeur, pas d'ecrasement silencieux | Couvert -- le court-circuit idempotent est bien la premiere instruction de `PaymentService.register` (avant `findDetailById` et tout controle metier, confirme par le test B5) ; `classify()` route 422/400/403/404 vers `CONFLICT` (terminal, jamais repris -- F9, F7), le message serveur integral est conserve et affiche (`PendingPaymentsCard.tsx`), retrait uniquement via confirmation explicite du vendeur (`ConfirmDialog`). |
-| 3 | Application utilisable en lecture (contrats deja charges) sans connexion | Couvert -- `VitePWA` avec `runtimeCaching` `NetworkFirst` sur les GET `/api/*`, `networkTimeoutSeconds: 5`, `navigateFallbackDenylist` correct pour ne jamais court-circuiter le backend ; build produit bien `dist/sw.js`, `dist/workbox-*.js`, `dist/manifest.webmanifest`, icones PNG 192/512 valides et de la bonne taille (verifie binairement, pas seulement declaratif) ; blocs nginx `location =` bien places avant la regle generique `expires 7d`. Non automatise (assume et documente dans la spec, M6/M7 sont manuels). |
-
-## Findings
-
-### 1 -- [Priorite 4 / risque financier direct] Aucune garde anti double-tap sur le chemin de mise en file de `PaymentDialog.tsx`
-
-**Fichier** : `frontend/src/components/PaymentDialog.tsx`, fonction `submit` lignes 153-179, et bouton
-ligne 304-306 :
-
-```tsx
-const submit = handleSubmit((values) => {
-  ...
-  const payload: PaymentPayload = { ..., clientRequestId: newClientRequestId() };
-  pendingRef.current = { payload, labels: {...} };
-  if (!online) {
-    void queuePendingPayment();   // pas de await, pas d'etat "en cours"
-    return;
-  }
-  mutation.mutate(payload);
-});
-...
-<Button variant="contained" size="large" onClick={submit} disabled={mutation.isPending}>
-```
-
-`queuePendingPayment` (lignes 117-125) est asynchrone (`await enqueuePayment(...)`, une ecriture
-IndexedDB) et ne ferme le dialogue (`onClose()`) qu'apres resolution. Pendant cette fenetre, le bouton
-n'est desactive par rien : `mutation.isPending` ne reflete que le chemin `mutation.mutate` (en ligne),
-jamais utilise pour la bascule hors-ligne, et `formState.isSubmitting` de react-hook-form ne se declenche
-pas non plus puisque le callback fait `void queuePendingPayment(); return;` sans renvoyer la promesse.
-
-**Scenario concret** : vendeur hors-ligne, tape rapidement deux fois sur « Enregistrer hors-ligne »
-(double-tap tactile, plausible sur les terminaux d'entree de gamme vises par l'app). `submit()` s'execute
-deux fois : chaque appel genere un `clientRequestId` different (`newClientRequestId()` est appele a
-l'interieur du callback, pas memorise en dehors), donc `enqueuePayment` cree deux entrees distinctes
-dans `pendingPayments` (la deduplication par `keyPath` ne joue pas puisque les cles different). Au retour
-du reseau, `flushQueue` rejoue les deux elements avec des `clientRequestId` distincts : l'idempotence
-serveur ne peut rien detecter, les deux POST creent deux versements legitimes distincts, ce qui est un
-double encaissement reel -- exactement le risque numero 1 que toute l'architecture V12/`clientRequestId`
-doit fermer.
-
-Le meme trou existe, en plus etroit, sur la bascule en file depuis l'echec reseau du chemin en ligne
-(`onError`, lignes 142-150) : une fois la mutation reglee en erreur, `mutation.isPending` redevient
-`false` alors que `queuePendingPayment()` est encore en cours, reactivant le bouton.
-
-Noter que le chemin en ligne reussi n'a pas ce probleme : `mutation.isPending` protege correctement
-(comportement inchange depuis avant #11, valide par le scenario manuel M8.1 de la spec). C'est
-specifiquement le nouveau code de la phase 3 (mise en file) qui n'a pas de garde equivalente.
-
-**Correction suggeree** : un etat local (`submitting`, ou un `useRef` verrouille de maniere synchrone au
-premier caractere de `submit()`) desactivant le bouton pendant toute la duree de `queuePendingPayment()`,
-symetrique a `mutation.isPending`. Alternative complementaire : memoriser le `clientRequestId` par
-`useRef` en dehors de `submit()` (regenere uniquement a l'ouverture du dialogue, pas a chaque soumission)
-de sorte qu'un double-tap reutilise le meme UUID et retombe sur la deduplication du `keyPath` IndexedDB.
-La desactivation du bouton reste la protection la plus directe et suffisante seule.
-
-**Portee** : fenetre de course etroite (duree d'une ecriture IndexedDB, generalement quelques
-millisecondes), donc peu probable en usage normal mais reelle et non nulle sur un appareil charge ou lent
--- exactement le contexte terrain vise (vendeurs en tournee, terminaux d'entree de gamme). Le plan de
-tests manuel de la spec (M8) ne couvre que le double-clic en ligne et le rechargement pendant un rejeu,
-pas le double-tap hors-ligne : c'est un angle mort du plan de test autant que du code.
-
-Aucun autre defaut reel n'a ete trouve sur les priorites 1 a 8 (idempotence serveur, invariants de la
-machine a etats, comportement 401, reentrance/FIFO, purge a la deconnexion, `resetStaleSyncing`,
-changement de compte) : le code correspond ligne a ligne aux signatures et a la table de decision de la
-spec, et les tests F1-F15/B1-B8 exercent effectivement les cas limites qu'ils pretendent couvrir (verifie
-en lisant les assertions, pas seulement les titres).
-
-### Points mineurs (non bloquants)
-
-- `frontend/nginx/locations.conf` inclut un bloc `location = /registerSW.js`, mais `VitePWA` est
-  configure avec `injectRegister: null` et l'enregistrement se fait via l'import direct de
-  `virtual:pwa-register` dans `main.tsx` : le plugin n'emet alors pas de fichier `registerSW.js`
-  autonome (verifie : absent de `dist/` apres build). Le bloc nginx est donc inerte (il retournera 404
-  sans effet de bord), mais merite d'etre note comme vestige sans utilite reelle plutot qu'un vrai bug.
+| 1 | Paiement hors-ligne visible localement en « en attente », synchronise automatiquement au retour du reseau | Couvert (valide en premiere revue, phases 1-4 non retouchees). Le double-tap qui aurait pu produire deux entrees "en attente" pour un seul paiement reel est desormais neutralise (voir ci-dessus). |
+| 2 | Conflit signale au vendeur, pas d'ecrasement silencieux | Couvert (valide en premiere revue, non retouche par ce commit). |
+| 3 | Application utilisable en lecture (contrats deja charges) sans connexion | Couvert (valide en premiere revue, non retouche par ce commit ; re-verifie ci-dessous via le build). |
 
 ## Build/tests (executes par le reviewer, pas repris du rapport du codeur)
 
-**Backend** -- `cd backend && mvn -o test`
+**Backend** — `cd backend && mvn -o test`
 ```
 Total tests: 294  Failures: 0  Errors: 0  Skipped: 0
 ```
-Confirme par agregation directe de `target/surefire-reports/*.txt` (55 fichiers de rapport). Correspond
-au chiffre annonce par le codeur (294 = 286 + 8 nouveaux B1-B8).
+Agrege directement depuis `target/surefire-reports/*.txt` (55 fichiers). Identique a la reference de
+premiere revue — attendu, le backend n'a pas bouge sur ce commit.
 
-**Frontend -- tests** -- `cd frontend && npm run test`
+**Frontend — tests** — `cd frontend && npm run test`
 ```
 Test Files  2 passed (2)
      Tests  16 passed (16)
 ```
-`src/offline/__tests__/queue.test.ts` (7 tests) + `src/offline/__tests__/sync.test.ts` (9 tests).
-Assertions relues integralement (pas seulement les titres) : F7 (table `classify` exhaustive), F9 (422
-conserve en `CONFLICT`, `send` appele une seule fois), F10 (erreur reseau jamais supprime), F11 (401,
-un seul `send`, elements suivants intacts), F14 (reentrance), F15 (arret apres 3 echecs reseau
-consecutifs) correspondent tous fidelement aux garanties qu'ils pretendent verifier.
+Identique a la reference — attendu, le fix touche un composant hors du perimetre `include` de Vitest.
 
-**Frontend -- build** -- `cd frontend && npm run build` (= `tsc --noEmit && vite build`)
+**Frontend — build** — `cd frontend && npm run build` (= `tsc --noEmit && vite build`)
 ```
-built in 7.52s
-PWA v0.20.5 -- mode generateSW -- precache 9 entries (775.74 KiB)
+built in 8.09s
+PWA v0.20.5 -- mode generateSW -- precache 9 entries (775.79 KiB)
 files generated: dist/sw.js, dist/workbox-efbd304a.js
 ```
-`dist/manifest.webmanifest`, `dist/icons/icon-192.png` (192x192 PNG RGBA valide) et
-`dist/icons/icon-512.png` (512x512 PNG RGBA valide) presents et verifies par lecture binaire de l'en-tete
-PNG (signature + dimensions IHDR), pas seulement par leur presence sur le disque -- l'affirmation du
-codeur sur la generation reelle des PNG via `sharp-cli` est donc confirmee.
+`dist/manifest.webmanifest` present. Les trois artefacts attendus (`dist/sw.js`,
+`dist/workbox-*.js`, `dist/manifest.webmanifest`) sont bien generes. `tsc --noEmit` passe sans erreur
+(le nouvel etat `queuing` est correctement type).
 
-## Fichiers cles consultes
+## Fichiers cles consultes (cette passe)
 
-- `backend/src/main/java/com/creditflow/payment/service/PaymentService.java`
-- `backend/src/main/java/com/creditflow/payment/web/PaymentController.java`
-- `backend/src/main/resources/db/migration/V12__payment_idempotency.sql`
-- `backend/src/test/java/com/creditflow/payment/service/PaymentServiceTest.java`
-- `backend/src/test/java/com/creditflow/payment/web/PaymentControllerSecurityTest.java`
-- `frontend/src/offline/queue.ts`, `frontend/src/offline/sync.ts`
-- `frontend/src/offline/__tests__/queue.test.ts`, `frontend/src/offline/__tests__/sync.test.ts`
-- `frontend/src/context/OfflineQueueContext.tsx`
-- `frontend/src/components/PaymentDialog.tsx` (Finding #1)
-- `frontend/src/components/OfflineBanner.tsx`, `frontend/src/components/PendingPaymentsCard.tsx`
-- `frontend/src/api/client.ts`, `frontend/src/api/endpoints.ts`, `frontend/src/auth/AuthContext.tsx`
-- `frontend/nginx/locations.conf`, `frontend/vite.config.ts`
-- `frontend/public/icons/icon-192.png`, `frontend/public/icons/icon-512.png`
+- `frontend/src/components/PaymentDialog.tsx` (fichier complet post-fix, pas seulement le diff)
+- `frontend/src/pages/PaymentsPage.tsx` (verification que le dialogue reste monte entre deux ouvertures)
+- `frontend/package.json`, `frontend/vite.config.ts` (verification de l'absence d'infra de test composant)
+- `git show f3c8bdb`, `git diff 020b90c..f3c8bdb --stat`
