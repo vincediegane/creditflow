@@ -143,7 +143,7 @@ public class LegacyImportService {
                         ? LocalDate.now() : row.startDate();
                 paymentService.register(new PaymentRequest(
                         sale.id(), row.alreadyPaid(), paymentDate, PaymentMethod.CASH,
-                        IMPORT_REFERENCE, "Cumul des versements deja recus avant la reprise"));
+                        IMPORT_REFERENCE, "Cumul des versements deja recus avant la reprise", null));
                 payments++;
             }
         }

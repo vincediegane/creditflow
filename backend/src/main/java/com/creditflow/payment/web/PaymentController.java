@@ -74,13 +74,17 @@ public class PaymentController {
     }
 
     @PostMapping
-    @Operation(summary = "Enregistrer un versement (met a jour echeances, contrat et tableau de bord)")
+    @Operation(summary = "Enregistrer un versement (idempotent via clientRequestId)")
     public ResponseEntity<PaymentResponse> register(@Valid @RequestBody PaymentRequest request,
                                                     UriComponentsBuilder uriBuilder) {
-        PaymentResponse created = paymentService.register(request);
+        PaymentService.RegistrationResult result = paymentService.register(request);
+        if (result.replayed()) {
+            // 200 sans Location : rien n'a ete cree, le versement etait deja enregistre.
+            return ResponseEntity.ok(result.payment());
+        }
         return ResponseEntity
-                .created(uriBuilder.path("/api/payments/{id}").build(created.id()))
-                .body(created);
+                .created(uriBuilder.path("/api/payments/{id}").build(result.payment().id()))
+                .body(result.payment());
     }
 
     @DeleteMapping("/{id}")

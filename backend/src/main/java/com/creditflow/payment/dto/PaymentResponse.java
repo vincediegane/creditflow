@@ -21,6 +21,7 @@ public record PaymentResponse(
         String notes,
         BigDecimal saleRemainingAmount,
         LocalDateTime createdAt,
-        String createdBy
+        String createdBy,
+        String clientRequestId
 ) {
 }

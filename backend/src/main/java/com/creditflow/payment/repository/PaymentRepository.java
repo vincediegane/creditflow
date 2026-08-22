@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long>,
         JpaSpecificationExecutor<Payment> {
@@ -68,4 +69,15 @@ public interface PaymentRepository extends JpaRepository<Payment, Long>,
     BigDecimal sumByCustomer(@Param("customerId") Long customerId);
 
     List<Payment> findBySaleIdOrderByPaymentDateAscIdAsc(Long saleId);
+
+    /** Court-circuit d'idempotence : les JOIN FETCH evitent 4 requetes lazy par rejeu. */
+    @Query("""
+            SELECT p FROM Payment p
+            JOIN FETCH p.sale s
+            JOIN FETCH s.customer
+            JOIN FETCH s.product
+            JOIN FETCH s.shop
+            WHERE p.clientRequestId = :clientRequestId
+            """)
+    Optional<Payment> findByClientRequestId(@Param("clientRequestId") String clientRequestId);
 }

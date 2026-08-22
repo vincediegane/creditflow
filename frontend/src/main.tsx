@@ -3,11 +3,15 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CssBaseline, ThemeProvider } from '@mui/material';
+import { registerSW } from 'virtual:pwa-register';
 
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
+import { OfflineQueueProvider } from './context/OfflineQueueContext';
 import { ShopProvider } from './context/ShopContext';
 import { theme } from './theme';
+
+registerSW({ immediate: true });
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,7 +31,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <BrowserRouter>
           <AuthProvider>
             <ShopProvider>
-              <App />
+              <OfflineQueueProvider>
+                <App />
+              </OfflineQueueProvider>
             </ShopProvider>
           </AuthProvider>
         </BrowserRouter>

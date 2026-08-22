@@ -340,6 +340,7 @@ export interface Payment {
   saleRemainingAmount: number;
   createdAt: string;
   createdBy?: string;
+  clientRequestId?: string;
 }
 
 export interface PaymentPayload {
@@ -349,6 +350,32 @@ export interface PaymentPayload {
   method: PaymentMethod;
   reference?: string;
   notes?: string;
+  clientRequestId?: string;
+}
+
+export type QueuedPaymentStatus = 'PENDING' | 'SYNCING' | 'CONFLICT';
+
+/** Un encaissement saisi hors-ligne, en attente de rejeu. C'est de l'argent : rien ici
+ *  ne doit dependre du cache React Query ni du localStorage, qui peuvent disparaitre. */
+export interface QueuedPayment {
+  /** Cle primaire du store. UUID v4 genere a la validation du formulaire. */
+  clientRequestId: string;
+  /** Corps exact du POST /api/payments, clientRequestId inclus. */
+  payload: PaymentPayload;
+  /** X-Shop-Id actif au moment de la saisie (null = pas d'en-tete). Fige, jamais recalcule. */
+  shopId: number | null;
+  /** Compte ayant saisi le versement : un autre utilisateur ne doit pas rejouer ses encaissements. */
+  username: string;
+  /** Libelles figes pour l'affichage : le cache peut avoir disparu au moment du rejeu. */
+  saleReference: string;
+  customerName: string;
+  status: QueuedPaymentStatus;
+  attempts: number;
+  /** ISO 8601. Ordre de rejeu. */
+  createdAt: string;
+  lastAttemptAt: string | null;
+  /** Message lisible : motif du conflit, ou derniere erreur reseau. */
+  lastError: string | null;
 }
 
 export type SaleAttachmentType = 'ID_DOCUMENT' | 'SIGNATURE' | 'OTHER';

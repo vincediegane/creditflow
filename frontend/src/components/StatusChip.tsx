@@ -3,10 +3,11 @@ import { Chip } from '@mui/material';
 import {
   INSTALLMENT_STATUS_LABELS,
   PRODUCT_STATUS_LABELS,
+  QUEUED_PAYMENT_STATUS_LABELS,
   SALE_STATUS_LABELS,
 } from '../utils/format';
 
-type Kind = 'sale' | 'installment' | 'product';
+type Kind = 'sale' | 'installment' | 'product' | 'queuedPayment';
 
 const COLORS: Record<string, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'> = {
   ACTIVE: 'primary',
@@ -18,12 +19,15 @@ const COLORS: Record<string, 'default' | 'primary' | 'success' | 'warning' | 'er
   LATE: 'error',
   INACTIVE: 'default',
   OUT_OF_STOCK: 'warning',
+  SYNCING: 'warning',
+  CONFLICT: 'error',
 };
 
 const LABELS: Record<Kind, Record<string, string>> = {
   sale: SALE_STATUS_LABELS,
   installment: INSTALLMENT_STATUS_LABELS,
   product: PRODUCT_STATUS_LABELS,
+  queuedPayment: QUEUED_PAYMENT_STATUS_LABELS,
 };
 
 interface Props {

@@ -25,6 +25,10 @@ public record PaymentRequest(
         @Size(max = 60)
         String reference,
 
-        String notes
+        String notes,
+
+        /** Identifiant d'idempotence genere par le client. Facultatif. */
+        @Size(max = 64)
+        String clientRequestId
 ) {
 }

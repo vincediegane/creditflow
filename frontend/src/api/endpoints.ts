@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, SHOP_HEADER } from './client';
 import type {
   AuditEntityType,
   AuditLogEntry,
@@ -231,6 +231,14 @@ export const paymentsApi = {
     },
   ) => api.get<PageResponse<Payment>>('/payments', { params }).then((r) => r.data),
   create: (payload: PaymentPayload) => api.post<Payment>('/payments', payload).then((r) => r.data),
+  /** Rejeu d'un versement mis en file hors-ligne : boutique figee, pas de redirection sur 401. */
+  replay: (payload: PaymentPayload, shopId: number | null) =>
+    api
+      .post<Payment>('/payments', payload, {
+        skipAuthRedirect: true,
+        headers: shopId === null ? undefined : { [SHOP_HEADER]: String(shopId) },
+      })
+      .then((r) => r.data),
   remove: (id: number) => api.delete(`/payments/${id}`).then(() => undefined),
   /** Reçu PDF à remettre au client. */
   downloadReceipt: async (id: number) => {

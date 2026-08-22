@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -47,6 +48,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -189,7 +192,7 @@ class PaymentServiceTest {
     @DisplayName("refuse une date de paiement dans le futur")
     void rejectsFutureDate() {
         PaymentRequest request = new PaymentRequest(1L, new BigDecimal("10000"),
-                LocalDate.now().plusDays(1), PaymentMethod.CASH, null, null);
+                LocalDate.now().plusDays(1), PaymentMethod.CASH, null, null, null);
 
         assertThatThrownBy(() -> paymentService.register(request))
                 .isInstanceOf(BusinessRuleException.class)
@@ -244,8 +247,94 @@ class PaymentServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
+    @Test
+    @DisplayName("un rejeu renvoie le versement existant sans creer de doublon")
+    void replayReturnsExistingPaymentWithoutCreatingDuplicate() {
+        Payment existing = existingPayment("req-1", new BigDecimal("50000"));
+        when(paymentRepository.findByClientRequestId("req-1")).thenReturn(Optional.of(existing));
+
+        PaymentService.RegistrationResult result = paymentService.register(request(new BigDecimal("50000"), "req-1"));
+
+        assertThat(result.replayed()).isTrue();
+        verify(paymentRepository, never()).save(any(Payment.class));
+        verify(saleRepository, never()).save(any(CreditSale.class));
+        assertThat(sale.getAmountPaid()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("le clientRequestId de la requete est persiste sur le versement")
+    void registerStoresClientRequestId() {
+        when(paymentRepository.findByClientRequestId("req-2")).thenReturn(Optional.empty());
+
+        PaymentService.RegistrationResult result = paymentService.register(request(new BigDecimal("50000"), "req-2"));
+
+        ArgumentCaptor<Payment> captor = ArgumentCaptor.forClass(Payment.class);
+        verify(paymentRepository).save(captor.capture());
+        assertThat(captor.getValue().getClientRequestId()).isEqualTo("req-2");
+        assertThat(result.replayed()).isFalse();
+    }
+
+    @Test
+    @DisplayName("un clientRequestId vide est stocke a null et ne declenche aucune recherche")
+    void blankClientRequestIdIsStoredAsNull() {
+        paymentService.register(request(new BigDecimal("50000"), "   "));
+
+        ArgumentCaptor<Payment> captor = ArgumentCaptor.forClass(Payment.class);
+        verify(paymentRepository).save(captor.capture());
+        assertThat(captor.getValue().getClientRequestId()).isNull();
+        verify(paymentRepository, never()).findByClientRequestId(any());
+    }
+
+    @Test
+    @DisplayName("sans clientRequestId le comportement est strictement l'ancien")
+    void registerWithoutClientRequestIdBehavesAsBefore() {
+        PaymentService.RegistrationResult result = paymentService.register(request(new BigDecimal("50000"), null));
+
+        verify(paymentRepository, never()).findByClientRequestId(any());
+        verify(paymentRepository).save(any(Payment.class));
+        assertThat(result.replayed()).isFalse();
+        assertThat(sale.getInstallments().get(0).getStatus()).isEqualTo(InstallmentStatus.PAID);
+        assertThat(sale.getAmountPaid()).isEqualByComparingTo("50000");
+    }
+
+    @Test
+    @DisplayName("le rejeu sur un contrat annule renvoie le versement d'origine et non un conflit")
+    void replayOnCancelledSaleReturnsOriginalPaymentInsteadOfConflict() {
+        sale.setStatus(SaleStatus.CANCELLED);
+        Payment existing = existingPayment("req-3", new BigDecimal("50000"));
+        when(paymentRepository.findByClientRequestId("req-3")).thenReturn(Optional.of(existing));
+
+        PaymentService.RegistrationResult result = paymentService.register(request(new BigDecimal("50000"), "req-3"));
+
+        assertThat(result.replayed()).isTrue();
+        verify(paymentRepository, never()).save(any(Payment.class));
+    }
+
+    @Test
+    @DisplayName("le rejeu d'un versement d'une autre boutique est rejete")
+    void replayOfPaymentFromAnotherShopIsRejected() {
+        Payment existing = existingPayment("req-4", new BigDecimal("50000"));
+        when(paymentRepository.findByClientRequestId("req-4")).thenReturn(Optional.of(existing));
+        org.mockito.Mockito.doThrow(new ResourceNotFoundException("Ressource introuvable"))
+                .when(currentShopContext).assertAccessible(1L);
+
+        assertThatThrownBy(() -> paymentService.register(request(new BigDecimal("50000"), "req-4")))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    private Payment existingPayment(String clientRequestId, BigDecimal amount) {
+        return Payment.builder()
+                .id(42L).sale(sale).amount(amount)
+                .paymentDate(LocalDate.now()).method(PaymentMethod.CASH)
+                .clientRequestId(clientRequestId).build();
+    }
+
     private PaymentRequest request(BigDecimal amount) {
-        return new PaymentRequest(1L, amount, LocalDate.now(), PaymentMethod.CASH, "REF-1", null);
+        return request(amount, null);
+    }
+
+    private PaymentRequest request(BigDecimal amount, String clientRequestId) {
+        return new PaymentRequest(1L, amount, LocalDate.now(), PaymentMethod.CASH, "REF-1", null, clientRequestId);
     }
 
     private CreditSale buildSale() {

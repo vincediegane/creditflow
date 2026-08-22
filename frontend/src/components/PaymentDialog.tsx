@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
 import {
   Alert,
   Autocomplete,
@@ -12,6 +13,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
+  FormHelperText,
   Grid,
   MenuItem,
   Stack,
@@ -21,7 +23,9 @@ import {
 
 import { errorMessage } from '../api/client';
 import { paymentsApi, salesApi } from '../api/endpoints';
-import type { PaymentMethod, Sale } from '../types';
+import { useOfflineQueue } from '../context/OfflineQueueContext';
+import { newClientRequestId } from '../offline/queue';
+import type { PaymentMethod, PaymentPayload, Sale } from '../types';
 import { PAYMENT_METHOD_LABELS, formatMoney, today } from '../utils/format';
 
 interface FormValues {
@@ -45,8 +49,10 @@ interface Props {
 
 export default function PaymentDialog({ open, onClose, sale, saleId, onSuccess }: Props) {
   const queryClient = useQueryClient();
+  const { online, enqueuePayment } = useOfflineQueue();
   const [error, setError] = useState<string | null>(null);
   const [printReceipt, setPrintReceipt] = useState(true);
+  const [queuing, setQueuing] = useState(false);
 
   const preselectedId = sale?.id ?? saleId ?? null;
 
@@ -102,6 +108,28 @@ export default function PaymentDialog({ open, onClose, sale, saleId, onSuccess }
     });
   }, [open, currentSale, reset]);
 
+  // Fige le payload (clientRequestId inclus) au moment de la soumission : si l'envoi en
+  // ligne echoue sans reponse, la file rejoue exactement la meme requete, jamais une neuve.
+  const pendingRef = useRef<{
+    payload: PaymentPayload;
+    labels: { saleReference: string; customerName: string };
+  } | null>(null);
+
+  const queuePendingPayment = async () => {
+    const pending = pendingRef.current;
+    if (!pending) {
+      return;
+    }
+    setQueuing(true);
+    try {
+      await enqueuePayment(pending.payload, pending.labels);
+      onSuccess?.();
+      onClose();
+    } finally {
+      setQueuing(false);
+    }
+  };
+
   const mutation = useMutation({
     mutationFn: paymentsApi.create,
     onSuccess: async (payment) => {
@@ -117,7 +145,15 @@ export default function PaymentDialog({ open, onClose, sale, saleId, onSuccess }
       onSuccess?.();
       onClose();
     },
-    onError: (err) => setError(errorMessage(err, "Le versement n'a pas pu être enregistré")),
+    onError: (err) => {
+      // Serveur injoignable alors que navigator.onLine dit vrai (wifi captif, backend a
+      // terre) : on ne peut pas perdre l'encaissement, on bascule en file comme hors-ligne.
+      if (!axios.isAxiosError(err) || !err.response) {
+        void queuePendingPayment();
+        return;
+      }
+      setError(errorMessage(err, "Le versement n'a pas pu être enregistré"));
+    },
   });
 
   const submit = handleSubmit((values) => {
@@ -125,14 +161,27 @@ export default function PaymentDialog({ open, onClose, sale, saleId, onSuccess }
       setError('Sélectionnez un contrat');
       return;
     }
-    mutation.mutate({
+    const payload: PaymentPayload = {
       saleId: Number(values.saleId),
       amount: Number(values.amount),
       paymentDate: values.paymentDate,
       method: values.method,
       reference: values.reference || undefined,
       notes: values.notes || undefined,
-    });
+      clientRequestId: newClientRequestId(),
+    };
+    pendingRef.current = {
+      payload,
+      labels: {
+        saleReference: activeSale?.reference ?? '',
+        customerName: activeSale?.customerName ?? '',
+      },
+    };
+    if (!online) {
+      void queuePendingPayment();
+      return;
+    }
+    mutation.mutate(payload);
   });
 
   return (
@@ -141,6 +190,14 @@ export default function PaymentDialog({ open, onClose, sale, saleId, onSuccess }
       <DialogContent>
         <Stack spacing={2.5} sx={{ mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
+
+          {!online && (
+            <Alert severity="info">
+              Vous êtes hors connexion. Le montant proposé provient du dernier chargement et peut
+              être périmé ; si le contrat a été soldé entre-temps, le paiement sera signalé en
+              conflit au retour du réseau.
+            </Alert>
+          )}
 
           {!preselectedId && (
             <Autocomplete
@@ -229,12 +286,19 @@ export default function PaymentDialog({ open, onClose, sale, saleId, onSuccess }
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={printReceipt}
+                    checked={printReceipt && online}
+                    disabled={!online}
                     onChange={(event) => setPrintReceipt(event.target.checked)}
                   />
                 }
                 label="Éditer le reçu à remettre au client"
               />
+              {!online && (
+                <FormHelperText>
+                  Le reçu est produit par le serveur : il sera téléchargeable depuis la page
+                  Paiements après synchronisation.
+                </FormHelperText>
+              )}
             </Grid>
           </Grid>
         </Stack>
@@ -243,8 +307,13 @@ export default function PaymentDialog({ open, onClose, sale, saleId, onSuccess }
         <Button onClick={onClose} color="inherit">
           Annuler
         </Button>
-        <Button variant="contained" size="large" onClick={submit} disabled={mutation.isPending}>
-          Enregistrer le paiement
+        <Button
+          variant="contained"
+          size="large"
+          onClick={submit}
+          disabled={mutation.isPending || queuing}
+        >
+          {online ? 'Enregistrer le paiement' : 'Enregistrer hors-ligne'}
         </Button>
       </DialogActions>
     </Dialog>

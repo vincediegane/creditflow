@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 
 import { ACCESSIBLE_SHOPS_KEY, ACTIVE_SHOP_KEY, TOKEN_KEY, USER_KEY } from '../api/client';
 import { authApi } from '../api/endpoints';
+import { purgeApiCache } from '../offline/httpCache';
 import type { ShopSummary, User } from '../types';
 
 interface AuthContextValue {
@@ -59,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     authApi.logout().catch(() => undefined);
+    purgeApiCache().catch(() => undefined);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(ACCESSIBLE_SHOPS_KEY);

@@ -33,6 +33,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
 import PaymentDialog from '../components/PaymentDialog';
+import PendingPaymentsCard from '../components/PendingPaymentsCard';
 import type { PaymentMethod } from '../types';
 import { PAYMENT_METHOD_LABELS, formatDate, formatMoney } from '../utils/format';
 
@@ -101,6 +102,8 @@ export default function PaymentsPage() {
           {error}
         </Alert>
       )}
+
+      <PendingPaymentsCard />
 
       <Card variant="outlined">
         <Grid container spacing={2} sx={{ p: 2 }}>

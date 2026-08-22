@@ -34,6 +34,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Enregistrement des versements. Chaque paiement met a jour, dans la meme
@@ -107,8 +108,24 @@ public class PaymentService {
     public record Receipt(String fileName, byte[] content) {
     }
 
+    /** Un rejeu (replayed = true) n'a rien cree : le versement etait deja en base. */
+    public record RegistrationResult(PaymentResponse payment, boolean replayed) {
+    }
+
     @Transactional
-    public PaymentResponse register(PaymentRequest request) {
+    public RegistrationResult register(PaymentRequest request) {
+        String clientRequestId = blankToNull(request.clientRequestId());
+        if (clientRequestId != null) {
+            Optional<Payment> existing = paymentRepository.findByClientRequestId(clientRequestId);
+            if (existing.isPresent()) {
+                Payment already = existing.get();
+                currentShopContext.assertAccessible(already.getSale().getShop().getId());
+                log.info("Rejeu idempotent : le versement {} existe deja pour clientRequestId={}",
+                        already.getId(), clientRequestId);
+                return new RegistrationResult(paymentMapper.toResponse(already), true);
+            }
+        }
+
         CreditSale sale = saleRepository.findDetailById(request.saleId())
                 .orElseThrow(() -> ResourceNotFoundException.of("Contrat", request.saleId()));
         currentShopContext.assertAccessible(sale.getShop().getId());
@@ -148,6 +165,7 @@ public class PaymentService {
                 .method(request.method())
                 .reference(blankToNull(request.reference()))
                 .notes(request.notes())
+                .clientRequestId(clientRequestId)
                 .build();
         Payment saved = paymentRepository.save(payment);
 
@@ -157,7 +175,7 @@ public class PaymentService {
         log.info("Versement de {} enregistre sur le contrat {} (reste {})",
                 amount, sale.getReference(), sale.getRemainingAmount());
 
-        return paymentMapper.toResponse(saved);
+        return new RegistrationResult(paymentMapper.toResponse(saved), false);
     }
 
     /**
