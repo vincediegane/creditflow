@@ -8,6 +8,13 @@ export const ACCESSIBLE_SHOPS_KEY = 'creditflow.accessibleShops';
 export const ACTIVE_SHOP_KEY = 'creditflow.activeShop';
 export const SHOP_HEADER = 'X-Shop-Id';
 
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    /** true = ne pas purger la session ni rediriger sur 401 (rejeu de file hors-ligne). */
+    skipAuthRedirect?: boolean;
+  }
+}
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? '/api',
   headers: { 'Content-Type': 'application/json' },
@@ -31,7 +38,7 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
   const activeShopId = localStorage.getItem(ACTIVE_SHOP_KEY);
-  if (activeShopId && readAccessibleShops().length > 1) {
+  if (activeShopId && readAccessibleShops().length > 1 && !config.headers[SHOP_HEADER]) {
     config.headers[SHOP_HEADER] = activeShopId;
   }
   return config;
@@ -42,7 +49,8 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     const status = error.response?.status;
     const onLoginPage = window.location.pathname === '/login';
-    if (status === 401 && !onLoginPage) {
+    const skipRedirect = error.config?.skipAuthRedirect === true;
+    if (status === 401 && !onLoginPage && !skipRedirect) {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
       localStorage.removeItem(ACCESSIBLE_SHOPS_KEY);
