@@ -78,6 +78,12 @@ export const PRODUCT_STATUS_LABELS: Record<string, string> = {
   OUT_OF_STOCK: 'Rupture',
 };
 
+export const QUEUED_PAYMENT_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'En attente',
+  SYNCING: 'Synchronisation',
+  CONFLICT: 'Conflit',
+};
+
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   CANCEL: 'Annulation du contrat',
   DELETE: 'Suppression du contrat',
