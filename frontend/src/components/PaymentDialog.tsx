@@ -52,6 +52,7 @@ export default function PaymentDialog({ open, onClose, sale, saleId, onSuccess }
   const { online, enqueuePayment } = useOfflineQueue();
   const [error, setError] = useState<string | null>(null);
   const [printReceipt, setPrintReceipt] = useState(true);
+  const [queuing, setQueuing] = useState(false);
 
   const preselectedId = sale?.id ?? saleId ?? null;
 
@@ -119,9 +120,14 @@ export default function PaymentDialog({ open, onClose, sale, saleId, onSuccess }
     if (!pending) {
       return;
     }
-    await enqueuePayment(pending.payload, pending.labels);
-    onSuccess?.();
-    onClose();
+    setQueuing(true);
+    try {
+      await enqueuePayment(pending.payload, pending.labels);
+      onSuccess?.();
+      onClose();
+    } finally {
+      setQueuing(false);
+    }
   };
 
   const mutation = useMutation({
@@ -301,7 +307,12 @@ export default function PaymentDialog({ open, onClose, sale, saleId, onSuccess }
         <Button onClick={onClose} color="inherit">
           Annuler
         </Button>
-        <Button variant="contained" size="large" onClick={submit} disabled={mutation.isPending}>
+        <Button
+          variant="contained"
+          size="large"
+          onClick={submit}
+          disabled={mutation.isPending || queuing}
+        >
           {online ? 'Enregistrer le paiement' : 'Enregistrer hors-ligne'}
         </Button>
       </DialogActions>
