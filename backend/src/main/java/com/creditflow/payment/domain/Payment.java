@@ -57,6 +57,9 @@ public class Payment {
     @Column(columnDefinition = "text")
     private String notes;
 
+    @Column(name = "client_request_id", length = 64, updatable = false)
+    private String clientRequestId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

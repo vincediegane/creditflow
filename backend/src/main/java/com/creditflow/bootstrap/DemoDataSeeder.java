@@ -217,7 +217,8 @@ public class DemoDataSeeder {
                         paymentDate,
                         randomMethod(random),
                         "REC-%05d".formatted(1000 + registered),
-                        round == 0 ? "Premier versement" : null));
+                        round == 0 ? "Premier versement" : null,
+                        null));
                 registered++;
             }
         }
