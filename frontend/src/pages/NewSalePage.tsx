@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Controller, useForm, useWatch } from 'react-hook-form';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   Autocomplete,
@@ -25,7 +25,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { errorMessage } from '../api/client';
 import { customersApi, productsApi, salesApi } from '../api/endpoints';
 import PageHeader from '../components/PageHeader';
-import type { SalePreview } from '../types';
+import type { Customer, SalePreview } from '../types';
 import { formatDate, formatMoney, today } from '../utils/format';
 
 interface FormValues {
@@ -46,8 +46,13 @@ interface FormValues {
 
 export default function NewSalePage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const customerIdParam = searchParams.get('customerId');
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<SalePreview | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const preselectionResolved = useRef(false);
 
   const customersQuery = useQuery({ queryKey: ['customers', 'select'], queryFn: customersApi.select });
   const productsQuery = useQuery({ queryKey: ['products', 'select'], queryFn: productsApi.select });
@@ -72,6 +77,23 @@ export default function NewSalePage() {
 
   const values = useWatch({ control });
 
+  useEffect(() => {
+    if (customerIdParam == null || customersQuery.data === undefined || preselectionResolved.current) {
+      return;
+    }
+    preselectionResolved.current = true;
+    const parsedId = Number(customerIdParam);
+    if (Number.isNaN(parsedId)) {
+      return;
+    }
+    const match = customersQuery.data.find((customer) => customer.id === parsedId);
+    if (match) {
+      setValue('customerId', match.id);
+      setSelectedCustomer(match);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customersQuery.data]);
+
   const previewMutation = useMutation({
     mutationFn: salesApi.preview,
     onSuccess: setPreview,
@@ -80,7 +102,14 @@ export default function NewSalePage() {
 
   const createMutation = useMutation({
     mutationFn: salesApi.create,
-    onSuccess: (sale) => navigate(`/ventes/${sale.id}`),
+    onSuccess: (sale) => {
+      queryClient.invalidateQueries({ queryKey: ['customer-profile', sale.customerId] });
+      if (customerIdParam != null) {
+        navigate(`/clients/${customerIdParam}`);
+      } else {
+        navigate(`/ventes/${sale.id}`);
+      }
+    },
     onError: (err) => setError(errorMessage(err, "La vente n'a pas pu être enregistrée")),
   });
 
@@ -171,6 +200,12 @@ export default function NewSalePage() {
               <Stack spacing={2.5}>
                 {error && <Alert severity="error">{error}</Alert>}
 
+                {customerIdParam != null && !customersQuery.isLoading && selectedCustomer === null && (
+                  <Alert severity="warning">
+                    Client demandé introuvable — sélectionnez-le manuellement ci-dessous.
+                  </Alert>
+                )}
+
                 <Controller
                   name="customerId"
                   control={control}
@@ -178,7 +213,12 @@ export default function NewSalePage() {
                     <Autocomplete
                       options={customersQuery.data ?? []}
                       getOptionLabel={(option) => `${option.fullName} — ${option.phone}`}
-                      onChange={(_, value) => setValue('customerId', value?.id ?? '')}
+                      value={selectedCustomer}
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
+                      onChange={(_, value) => {
+                        setValue('customerId', value?.id ?? '');
+                        setSelectedCustomer(value ?? null);
+                      }}
                       renderInput={(params) => (
                         <TextField {...params} label="Client" placeholder="Nom ou téléphone" />
                       )}
