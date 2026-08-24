@@ -142,6 +142,9 @@ export default function SaleDetailPage() {
               Retour
             </Button>
             <Button onClick={() => setReminderOpen(true)}>Générer la relance</Button>
+            <Button startIcon={<ReceiptIcon />} onClick={() => salesApi.downloadInvoice(sale.id)}>
+              Télécharger la facture
+            </Button>
             {sale.status === 'ACTIVE' && (
               <Button
                 variant="contained"

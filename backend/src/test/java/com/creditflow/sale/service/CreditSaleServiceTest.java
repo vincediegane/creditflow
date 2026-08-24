@@ -22,10 +22,13 @@ import com.creditflow.product.repository.ProductRepository;
 import com.creditflow.product.repository.StockMovementRepository;
 import com.creditflow.product.service.ProductService;
 import com.creditflow.sale.domain.CreditSale;
+import com.creditflow.sale.domain.Installment;
+import com.creditflow.sale.domain.InstallmentStatus;
 import com.creditflow.sale.domain.SaleAttachment;
 import com.creditflow.sale.domain.SaleAttachmentType;
 import com.creditflow.sale.domain.SaleStatus;
 import com.creditflow.sale.dto.CreateSaleRequest;
+import com.creditflow.sale.export.InvoiceGenerator;
 import com.creditflow.sale.mapper.SaleMapper;
 import com.creditflow.sale.repository.CreditSaleRepository;
 import com.creditflow.sale.repository.InstallmentRepository;
@@ -103,6 +106,9 @@ class CreditSaleServiceTest {
 
     @Mock
     private ShopRepository shopRepository;
+
+    @Mock
+    private InvoiceGenerator invoiceGenerator;
 
     @InjectMocks
     private CreditSaleService creditSaleService;
@@ -317,7 +323,7 @@ class CreditSaleServiceTest {
         CreditSaleService service = new CreditSaleService(saleRepository, installmentRepository, paymentRepository,
                 saleAttachmentRepository, customerService, realProductService, scheduleGenerator, saleMapper,
                 paymentMapper, auditLogService, penaltySettingsService, fileStorageService, currentShopContext,
-                shopRepository);
+                shopRepository, invoiceGenerator);
 
         CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, 3, LocalDate.now(), null, null, null, null, null);
@@ -390,5 +396,29 @@ class CreditSaleServiceTest {
         assertThatThrownBy(() -> creditSaleService.deleteAttachment(1L, 3L))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(saleAttachmentRepository, never()).delete(any(SaleAttachment.class));
+    }
+
+    @Test
+    @DisplayName("genere la facture quel que soit le statut du contrat")
+    void invoiceWorksRegardlessOfStatus() {
+        sale.setStatus(SaleStatus.CANCELLED);
+        when(invoiceGenerator.fileName(sale)).thenReturn("facture-fac-2026-00001-20260824.pdf");
+        when(invoiceGenerator.generate(sale, sale.getInstallments())).thenReturn(new byte[]{1, 2, 3});
+
+        CreditSaleService.Invoice invoice = creditSaleService.invoice(1L);
+
+        assertThat(invoice.fileName()).isEqualTo("facture-fac-2026-00001-20260824.pdf");
+        assertThat(invoice.content()).isEqualTo(new byte[]{1, 2, 3});
+    }
+
+    @Test
+    @DisplayName("refuse la facture d'un contrat d'une autre boutique")
+    void invoiceRejectsSaleFromAnotherShop() {
+        org.mockito.Mockito.doThrow(new ResourceNotFoundException("Ressource introuvable"))
+                .when(currentShopContext).assertAccessible(1L);
+
+        assertThatThrownBy(() -> creditSaleService.invoice(1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(invoiceGenerator, never()).generate(any(), any());
     }
 }

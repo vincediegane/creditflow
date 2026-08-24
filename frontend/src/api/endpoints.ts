@@ -199,6 +199,11 @@ export const salesApi = {
   },
   removeAttachment: (saleId: number, attachmentId: number) =>
     api.delete(`/sales/${saleId}/attachments/${attachmentId}`).then(() => undefined),
+  /** Facture PDF du contrat, à remettre au client. */
+  downloadInvoice: async (id: number) => {
+    const response = await api.get(`/sales/${id}/invoice`, { responseType: 'blob' });
+    downloadBlob(response.data, filenameFromHeaders(response.headers, `facture-${id}.pdf`));
+  },
 };
 
 /* ------------------------------ Echeances --------------------------- */

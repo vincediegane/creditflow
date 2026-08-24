@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -76,6 +77,17 @@ public class SaleController {
     @Operation(summary = "Contrat + echeances + paiements")
     public SaleDetailResponse detail(@PathVariable Long id) {
         return creditSaleService.findDetail(id);
+    }
+
+    @GetMapping("/{id}/invoice")
+    @Operation(summary = "Facture PDF du contrat, a remettre au client")
+    public ResponseEntity<byte[]> invoice(@PathVariable Long id) {
+        CreditSaleService.Invoice invoice = creditSaleService.invoice(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + invoice.fileName() + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(invoice.content());
     }
 
     @GetMapping("/{id}/installments")

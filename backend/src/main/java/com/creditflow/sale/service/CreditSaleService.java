@@ -28,6 +28,7 @@ import com.creditflow.sale.dto.SaleDetailResponse;
 import com.creditflow.sale.dto.SalePreviewRequest;
 import com.creditflow.sale.dto.SalePreviewResponse;
 import com.creditflow.sale.dto.SaleResponse;
+import com.creditflow.sale.export.InvoiceGenerator;
 import com.creditflow.sale.mapper.SaleMapper;
 import com.creditflow.sale.repository.CreditSaleRepository;
 import com.creditflow.sale.repository.InstallmentRepository;
@@ -67,6 +68,7 @@ public class CreditSaleService {
     private final FileStorageService fileStorageService;
     private final CurrentShopContext currentShopContext;
     private final ShopRepository shopRepository;
+    private final InvoiceGenerator invoiceGenerator;
 
     @Transactional(readOnly = true)
     public PageResponse<SaleResponse> search(String search, SaleStatus status, Long customerId, Pageable pageable) {
@@ -101,6 +103,17 @@ public class CreditSaleService {
                 paymentRepository.findBySale(id).stream().map(paymentMapper::toResponse).toList(),
                 saleAttachmentRepository.findBySaleIdOrderByCreatedAtAsc(id).stream()
                         .map(saleMapper::toResponse).toList());
+    }
+
+    public record Invoice(String fileName, byte[] content) {
+    }
+
+    /** Facture PDF remise au client : contenu et nom de fichier. */
+    @Transactional(readOnly = true)
+    public Invoice invoice(Long id) {
+        CreditSale sale = getEntity(id);
+        List<Installment> installments = sale.getInstallments();
+        return new Invoice(invoiceGenerator.fileName(sale), invoiceGenerator.generate(sale, installments));
     }
 
     @Transactional(readOnly = true)

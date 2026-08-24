@@ -1,5 +1,6 @@
 package com.creditflow.sale.web;
 
+import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.config.AbstractWebMvcSecurityTest;
 import com.creditflow.payment.service.PaymentService;
 import com.creditflow.sale.domain.SaleAttachmentType;
@@ -10,10 +11,12 @@ import com.creditflow.sale.dto.SaleResponse;
 import com.creditflow.sale.service.CreditSaleService;
 import com.creditflow.sale.service.InstallmentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,8 +29,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(SaleController.class)
@@ -116,5 +121,26 @@ class SaleControllerSecurityTest extends AbstractWebMvcSecurityTest {
     @WithMockUser(roles = "SELLER")
     void sellerCanDeleteAttachment() throws Exception {
         mockMvc.perform(delete("/api/sales/1/attachments/2")).andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(roles = "SELLER")
+    @DisplayName("telecharge la facture d'un contrat accessible")
+    void sellerCanDownloadInvoice() throws Exception {
+        when(creditSaleService.invoice(1L)).thenReturn(
+                new CreditSaleService.Invoice("facture-fac-2026-00001-20260824.pdf", new byte[]{1, 2, 3}));
+
+        mockMvc.perform(get("/api/sales/1/invoice"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF));
+    }
+
+    @Test
+    @WithMockUser(roles = "SELLER")
+    @DisplayName("refuse la facture d'un contrat d'une autre boutique")
+    void sellerCannotDownloadInvoiceOfSaleFromAnotherShop() throws Exception {
+        when(creditSaleService.invoice(2L)).thenThrow(new ResourceNotFoundException("Ressource introuvable"));
+
+        mockMvc.perform(get("/api/sales/2/invoice")).andExpect(status().isNotFound());
     }
 }
