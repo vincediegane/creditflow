@@ -5,6 +5,7 @@ import type { ShopSummary } from '../types';
 export const TOKEN_KEY = 'creditflow.token';
 export const USER_KEY = 'creditflow.user';
 export const ACCESSIBLE_SHOPS_KEY = 'creditflow.accessibleShops';
+export const PLAN_KEY = 'creditflow.plan';
 export const ACTIVE_SHOP_KEY = 'creditflow.activeShop';
 export const SHOP_HEADER = 'X-Shop-Id';
 
@@ -54,6 +55,7 @@ api.interceptors.response.use(
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
       localStorage.removeItem(ACCESSIBLE_SHOPS_KEY);
+      localStorage.removeItem(PLAN_KEY);
       localStorage.removeItem(ACTIVE_SHOP_KEY);
       window.location.replace('/login');
     }

@@ -1,14 +1,15 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
-import { ACCESSIBLE_SHOPS_KEY, ACTIVE_SHOP_KEY, TOKEN_KEY, USER_KEY } from '../api/client';
+import { ACCESSIBLE_SHOPS_KEY, ACTIVE_SHOP_KEY, PLAN_KEY, TOKEN_KEY, USER_KEY } from '../api/client';
 import { authApi } from '../api/endpoints';
 import { purgeApiCache } from '../offline/httpCache';
-import type { ShopSummary, User } from '../types';
+import type { PlanSummary, ShopSummary, User } from '../types';
 
 interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
   accessibleShops: ShopSummary[];
+  plan: PlanSummary;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   /** Met à jour le profil en mémoire (après un changement de mot de passe). */
@@ -18,6 +19,8 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const DEFAULT_PLAN: PlanSummary = { multiShop: true, whatsappAuto: true };
 
 function readStoredUser(): User | null {
   const raw = localStorage.getItem(USER_KEY);
@@ -43,19 +46,35 @@ function readStoredAccessibleShops(): ShopSummary[] {
   }
 }
 
+function readStoredPlan(): PlanSummary {
+  const raw = localStorage.getItem(PLAN_KEY);
+  if (!raw) {
+    return DEFAULT_PLAN;
+  }
+  try {
+    return JSON.parse(raw) as PlanSummary;
+  } catch {
+    return DEFAULT_PLAN;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => readStoredUser());
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [accessibleShops, setAccessibleShops] = useState<ShopSummary[]>(() => readStoredAccessibleShops());
+  const [plan, setPlan] = useState<PlanSummary>(() => readStoredPlan());
 
   const login = useCallback(async (username: string, password: string) => {
     const response = await authApi.login(username, password);
+    const plan = response.plan ?? DEFAULT_PLAN;
     localStorage.setItem(TOKEN_KEY, response.token);
     localStorage.setItem(USER_KEY, JSON.stringify(response.user));
     localStorage.setItem(ACCESSIBLE_SHOPS_KEY, JSON.stringify(response.accessibleShops));
+    localStorage.setItem(PLAN_KEY, JSON.stringify(plan));
     setToken(response.token);
     setUser(response.user);
     setAccessibleShops(response.accessibleShops);
+    setPlan(plan);
   }, []);
 
   const logout = useCallback(() => {
@@ -64,10 +83,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(ACCESSIBLE_SHOPS_KEY);
+    localStorage.removeItem(PLAN_KEY);
     localStorage.removeItem(ACTIVE_SHOP_KEY);
     setToken(null);
     setUser(null);
     setAccessibleShops([]);
+    setPlan(DEFAULT_PLAN);
   }, []);
 
   const refreshUser = useCallback((updated: User) => {
@@ -85,12 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       isAuthenticated: Boolean(token),
       accessibleShops,
+      plan,
       login,
       logout,
       refreshUser,
       refreshAccessibleShops,
     }),
-    [user, token, accessibleShops, login, logout, refreshUser, refreshAccessibleShops],
+    [user, token, accessibleShops, plan, login, logout, refreshUser, refreshAccessibleShops],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

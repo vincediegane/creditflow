@@ -29,6 +29,7 @@ import EditIcon from '@mui/icons-material/EditOutlined';
 
 import { errorMessage } from '../api/client';
 import { shopsApi } from '../api/endpoints';
+import { useAuth } from '../auth/AuthContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
@@ -43,6 +44,7 @@ const EMPTY_FORM: ShopPayload = {
 
 export default function ShopsPage() {
   const queryClient = useQueryClient();
+  const { plan } = useAuth();
 
   const [editing, setEditing] = useState<Shop | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -118,9 +120,16 @@ export default function ShopsPage() {
         title="Boutiques"
         subtitle="Points de vente rattachés aux clients, produits et contrats"
         action={
-          <Button variant="contained" size="large" startIcon={<AddIcon />} onClick={openCreate}>
-            Nouvelle boutique
-          </Button>
+          plan.multiShop ? (
+            <Button variant="contained" size="large" startIcon={<AddIcon />} onClick={openCreate}>
+              Nouvelle boutique
+            </Button>
+          ) : (
+            <Chip
+              label="Formule actuelle : une seule boutique. Contactez l'exploitant pour passer au Multi-boutiques."
+              variant="outlined"
+            />
+          )
         }
       />
 
