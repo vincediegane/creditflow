@@ -204,6 +204,11 @@ export const salesApi = {
     const response = await api.get(`/sales/${id}/invoice`, { responseType: 'blob' });
     downloadBlob(response.data, filenameFromHeaders(response.headers, `facture-${id}.pdf`));
   },
+  /** Bon de livraison PDF du contrat, à remettre au client lors de la remise du produit. */
+  downloadDeliveryNote: async (id: number) => {
+    const response = await api.get(`/sales/${id}/delivery-note`, { responseType: 'blob' });
+    downloadBlob(response.data, filenameFromHeaders(response.headers, `bon-livraison-${id}.pdf`));
+  },
 };
 
 /* ------------------------------ Echeances --------------------------- */
