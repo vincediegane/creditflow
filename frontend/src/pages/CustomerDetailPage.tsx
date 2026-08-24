@@ -72,6 +72,9 @@ export default function CustomerDetailPage() {
             <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/clients')}>
               Retour
             </Button>
+            <Button variant="outlined" onClick={() => navigate(`/ventes/nouvelle?customerId=${customerId}`)}>
+              Nouveau contrat
+            </Button>
             <Button variant="contained" onClick={() => setReminderOpen(true)}>
               Générer la relance
             </Button>
