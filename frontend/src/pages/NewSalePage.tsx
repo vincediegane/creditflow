@@ -105,7 +105,7 @@ export default function NewSalePage() {
     onSuccess: (sale) => {
       queryClient.invalidateQueries({ queryKey: ['customer-profile', sale.customerId] });
       if (customerIdParam != null) {
-        navigate(`/clients/${customerIdParam}`);
+        navigate(`/clients/${sale.customerId}`);
       } else {
         navigate(`/ventes/${sale.id}`);
       }
