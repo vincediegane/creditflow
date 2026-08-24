@@ -25,3 +25,7 @@ backups/*
 !backups/.gitkeep
 certs/*
 !certs/.gitkeep
+
+# Presentations generees (artefacts binaires, pas du code source)
+docs/*.pptx
+docs/~$*.pptx
