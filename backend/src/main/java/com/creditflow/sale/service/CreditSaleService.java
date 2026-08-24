@@ -28,6 +28,7 @@ import com.creditflow.sale.dto.SaleDetailResponse;
 import com.creditflow.sale.dto.SalePreviewRequest;
 import com.creditflow.sale.dto.SalePreviewResponse;
 import com.creditflow.sale.dto.SaleResponse;
+import com.creditflow.sale.export.DeliveryNoteGenerator;
 import com.creditflow.sale.export.InvoiceGenerator;
 import com.creditflow.sale.mapper.SaleMapper;
 import com.creditflow.sale.repository.CreditSaleRepository;
@@ -69,6 +70,7 @@ public class CreditSaleService {
     private final CurrentShopContext currentShopContext;
     private final ShopRepository shopRepository;
     private final InvoiceGenerator invoiceGenerator;
+    private final DeliveryNoteGenerator deliveryNoteGenerator;
 
     @Transactional(readOnly = true)
     public PageResponse<SaleResponse> search(String search, SaleStatus status, Long customerId, Pageable pageable) {
@@ -114,6 +116,16 @@ public class CreditSaleService {
         CreditSale sale = getEntity(id);
         List<Installment> installments = sale.getInstallments();
         return new Invoice(invoiceGenerator.fileName(sale), invoiceGenerator.generate(sale, installments));
+    }
+
+    public record DeliveryNote(String fileName, byte[] content) {
+    }
+
+    /** Bon de livraison PDF a remettre au client : contenu et nom de fichier. */
+    @Transactional(readOnly = true)
+    public DeliveryNote deliveryNote(Long id) {
+        CreditSale sale = getEntity(id);
+        return new DeliveryNote(deliveryNoteGenerator.fileName(sale), deliveryNoteGenerator.generate(sale));
     }
 
     @Transactional(readOnly = true)

@@ -25,6 +25,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import BadgeIcon from '@mui/icons-material/Badge';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import DrawIcon from '@mui/icons-material/Draw';
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
+import NoteAddOutlinedIcon from '@mui/icons-material/NoteAddOutlined';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import ReceiptIcon from '@mui/icons-material/ReceiptLong';
 
@@ -63,6 +65,7 @@ export default function SaleDetailPage() {
   const [attachmentToDelete, setAttachmentToDelete] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const idDocumentInput = useRef<HTMLInputElement>(null);
+  const otherDocumentInput = useRef<HTMLInputElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sale-detail', saleId],
@@ -144,6 +147,12 @@ export default function SaleDetailPage() {
             <Button onClick={() => setReminderOpen(true)}>Générer la relance</Button>
             <Button startIcon={<ReceiptIcon />} onClick={() => salesApi.downloadInvoice(sale.id)}>
               Télécharger la facture
+            </Button>
+            <Button
+              startIcon={<LocalShippingOutlinedIcon />}
+              onClick={() => salesApi.downloadDeliveryNote(sale.id)}
+            >
+              Télécharger le bon de livraison
             </Button>
             {sale.status === 'ACTIVE' && (
               <Button
@@ -381,6 +390,27 @@ export default function SaleDetailPage() {
                     disabled={uploadAttachmentMutation.isPending}
                   >
                     Faire signer le client
+                  </Button>
+                  <input
+                    ref={otherDocumentInput}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        uploadAttachmentMutation.mutate({ type: 'OTHER', file });
+                      }
+                      event.target.value = '';
+                    }}
+                  />
+                  <Button
+                    size="small"
+                    startIcon={<NoteAddOutlinedIcon />}
+                    onClick={() => otherDocumentInput.current?.click()}
+                    disabled={uploadAttachmentMutation.isPending}
+                  >
+                    Joindre un document
                   </Button>
                 </Stack>
               </Stack>
