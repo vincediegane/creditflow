@@ -28,6 +28,7 @@ import com.creditflow.sale.domain.SaleAttachment;
 import com.creditflow.sale.domain.SaleAttachmentType;
 import com.creditflow.sale.domain.SaleStatus;
 import com.creditflow.sale.dto.CreateSaleRequest;
+import com.creditflow.sale.export.DeliveryNoteGenerator;
 import com.creditflow.sale.export.InvoiceGenerator;
 import com.creditflow.sale.mapper.SaleMapper;
 import com.creditflow.sale.repository.CreditSaleRepository;
@@ -109,6 +110,9 @@ class CreditSaleServiceTest {
 
     @Mock
     private InvoiceGenerator invoiceGenerator;
+
+    @Mock
+    private DeliveryNoteGenerator deliveryNoteGenerator;
 
     @InjectMocks
     private CreditSaleService creditSaleService;
@@ -323,7 +327,7 @@ class CreditSaleServiceTest {
         CreditSaleService service = new CreditSaleService(saleRepository, installmentRepository, paymentRepository,
                 saleAttachmentRepository, customerService, realProductService, scheduleGenerator, saleMapper,
                 paymentMapper, auditLogService, penaltySettingsService, fileStorageService, currentShopContext,
-                shopRepository, invoiceGenerator);
+                shopRepository, invoiceGenerator, deliveryNoteGenerator);
 
         CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, 3, LocalDate.now(), null, null, null, null, null);
@@ -420,5 +424,29 @@ class CreditSaleServiceTest {
         assertThatThrownBy(() -> creditSaleService.invoice(1L))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(invoiceGenerator, never()).generate(any(), any());
+    }
+
+    @Test
+    @DisplayName("genere le bon de livraison quel que soit le statut du contrat")
+    void deliveryNoteWorksRegardlessOfStatus() {
+        sale.setStatus(SaleStatus.CANCELLED);
+        when(deliveryNoteGenerator.fileName(sale)).thenReturn("bon-livraison-bl-2026-00001-20260824.pdf");
+        when(deliveryNoteGenerator.generate(sale)).thenReturn(new byte[]{1, 2, 3});
+
+        CreditSaleService.DeliveryNote deliveryNote = creditSaleService.deliveryNote(1L);
+
+        assertThat(deliveryNote.fileName()).isEqualTo("bon-livraison-bl-2026-00001-20260824.pdf");
+        assertThat(deliveryNote.content()).isEqualTo(new byte[]{1, 2, 3});
+    }
+
+    @Test
+    @DisplayName("refuse le bon de livraison d'un contrat d'une autre boutique")
+    void deliveryNoteRejectsSaleFromAnotherShop() {
+        org.mockito.Mockito.doThrow(new ResourceNotFoundException("Ressource introuvable"))
+                .when(currentShopContext).assertAccessible(1L);
+
+        assertThatThrownBy(() -> creditSaleService.deliveryNote(1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(deliveryNoteGenerator, never()).generate(any());
     }
 }

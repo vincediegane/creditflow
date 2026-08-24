@@ -90,6 +90,17 @@ public class SaleController {
                 .body(invoice.content());
     }
 
+    @GetMapping("/{id}/delivery-note")
+    @Operation(summary = "Bon de livraison PDF du contrat, a remettre au client")
+    public ResponseEntity<byte[]> deliveryNote(@PathVariable Long id) {
+        CreditSaleService.DeliveryNote note = creditSaleService.deliveryNote(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + note.fileName() + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(note.content());
+    }
+
     @GetMapping("/{id}/installments")
     @Operation(summary = "Echeances d'un contrat")
     public List<InstallmentResponse> installments(@PathVariable Long id) {

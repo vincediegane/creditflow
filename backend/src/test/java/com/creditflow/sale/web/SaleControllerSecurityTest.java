@@ -143,4 +143,25 @@ class SaleControllerSecurityTest extends AbstractWebMvcSecurityTest {
 
         mockMvc.perform(get("/api/sales/2/invoice")).andExpect(status().isNotFound());
     }
+
+    @Test
+    @WithMockUser(roles = "SELLER")
+    @DisplayName("telecharge le bon de livraison d'un contrat accessible")
+    void sellerCanDownloadDeliveryNote() throws Exception {
+        when(creditSaleService.deliveryNote(1L)).thenReturn(
+                new CreditSaleService.DeliveryNote("bon-livraison-bl-2026-00001-20260824.pdf", new byte[]{1, 2, 3}));
+
+        mockMvc.perform(get("/api/sales/1/delivery-note"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF));
+    }
+
+    @Test
+    @WithMockUser(roles = "SELLER")
+    @DisplayName("refuse le bon de livraison d'un contrat d'une autre boutique")
+    void sellerCannotDownloadDeliveryNoteOfSaleFromAnotherShop() throws Exception {
+        when(creditSaleService.deliveryNote(2L)).thenThrow(new ResourceNotFoundException("Ressource introuvable"));
+
+        mockMvc.perform(get("/api/sales/2/delivery-note")).andExpect(status().isNotFound());
+    }
 }
