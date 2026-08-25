@@ -44,41 +44,60 @@ Tickets de suivi a creer (scope precis, a traiter dans cet ordre — chacun born
 cycle bolt) :
 
 1. **Fondation de donnees — entite `Organization`, sans changement de comportement.**
-   Migration Flyway ajoutant la table `organizations` et une colonne `organization_id` (nullable
-   dans un premier temps, ou NOT NULL avec backfill d'une organisation « defaut » unique — a
-   trancher dans la spec de ce ticket) sur `shops`. Entite JPA `Organization`. Aucune requete
-   existante n'est modifiee, `CurrentShopContext` inchange, `Role.ADMIN` reste global. Objectif :
-   poser le socle de donnees sans toucher a la logique d'acces, testable independamment.
+   Migration Flyway ajoutant la table `organizations`, une colonne `organization_id` sur `shops`,
+   et une colonne `organization_id` sur `users` (nullable dans un premier temps, ou NOT NULL avec
+   backfill d'une organisation « defaut » unique — a trancher dans la spec de ce ticket). Entite
+   JPA `Organization`, relations `Shop.organization` et `User.organization`. Perimetre etendu a
+   `users` (et non `shops` seul) parce que le ticket de suivi n°2 doit deriver l'organisation d'un
+   `ADMIN` sans boutique assignee (cas reel, cf. `CurrentShopContext.accessibleShopsOf`, ligne
+   59-60) — un tel `ADMIN` n'a par definition aucune boutique dont deriver une organisation, donc
+   `shops.organization_id` seul ne suffit pas. Decision retenue plutot qu'une regle de derivation
+   implicite (ex. « organisation unique en mode mono-tenant ») : porter l'organisation directement
+   sur `User` est la solution la plus simple, coherente avec la section JWT/claims ci-dessous qui
+   suppose deja le chargement de `User.organization` a chaque requete, et ne depend d'aucune
+   hypothese fragile sur le nombre d'organisations en base. Aucune requete existante n'est
+   modifiee, `CurrentShopContext` inchange, `Role.ADMIN` reste global. Objectif : poser le socle de
+   donnees sans toucher a la logique d'acces, testable independamment.
 2. **Scoping `ADMIN` par organisation + `CurrentShopContext`.**
    `ShopRepository.findAllByActiveTrueOrderByNameAsc()` remplace par une variante filtree par
    `organization_id` ; `CurrentShopContext.accessibleShopsOf` scope la branche `ADMIN`. Tests de
    non-regression explicites : une instance mono-tenant (une seule organisation en base) doit
    observer un comportement strictement identique a aujourd'hui.
-3. **Propagation aux repositories/`Specifications` metier restants** (`Customer`, `Product`,
-   `CreditSale`, `Payment`, `Installment`, `StockReception`, `AuditLog`) et audit des methodes qui
-   filtrent aujourd'hui uniquement par `customerId`/`saleId` en s'appuyant sur un
-   `assertAccessible` en amont (ex. `PaymentRepository.findByCustomer`,
-   `CreditSaleRepository.sumRemainingByCustomer`) — ces chemins doivent rester surs une fois
-   `assertAccessible` scope par organisation. Probablement a re-decouper par module tant le
-   perimetre (une dizaine de repositories) depasse un seul bolt.
-4. **Defense en profondeur base de donnees — Postgres Row-Level Security.**
+3. **Propagation aux repositories/`Specifications` — module Customer/Product.**
+   `CustomerSpecifications`, `CustomerRepository`, `ProductRepository`, `ProductSpecifications`,
+   et les services associes (`CustomerService`, `ProductService`) qui s'appuient sur
+   `CurrentShopContext.assertAccessible`.
+4. **Propagation aux repositories/`Specifications` — module CreditSale/Installment.**
+   `CreditSaleRepository`, `SaleSpecifications`, `InstallmentRepository`,
+   `InstallmentSpecifications`, et les services associes (`CreditSaleService`,
+   `InstallmentService`), y compris l'audit des methodes qui filtrent aujourd'hui uniquement par
+   `customerId`/`saleId` en s'appuyant sur un `assertAccessible` en amont (ex.
+   `CreditSaleRepository.sumRemainingByCustomer`, `sumTotalPriceByCustomer`).
+5. **Propagation aux repositories/`Specifications` — module Payment.**
+   `PaymentRepository`, `PaymentSpecifications`, `PaymentService`, y compris l'audit des methodes
+   qui filtrent aujourd'hui uniquement par `customerId`/`saleId` en s'appuyant sur un
+   `assertAccessible` en amont (ex. `PaymentRepository.findByCustomer`, `findBySale`).
+6. **Propagation aux repositories/`Specifications` — module StockReception/AuditLog.**
+   `StockReceptionSpecifications`, `StockReceptionService`, `AuditLogAccessGuard.assertReadable`
+   (qui delegue a `getEntity()` des services metier), `ReminderService`.
+7. **Defense en profondeur base de donnees — Postgres Row-Level Security.**
    Policies RLS sur les tables metier, activees via une variable de session
    (`SET app.current_org_id`) positionnee en debut de requete (filtre servlet ou intercepteur
    Hibernate), pour que l'isolation ne repose pas uniquement sur le code applicatif.
-5. **Isolation du stockage fichiers.**
+8. **Isolation du stockage fichiers.**
    `FileStorageService` (dossiers scopes par organisation), remplacement de l'exposition statique
    publique actuelle (`WebConfig` + `/uploads/**` en `permitAll` dans `SecurityConfig`) par un
    endpoint authentifie qui verifie l'appartenance du fichier a une organisation accessible.
-6. **Modele de plan par tenant en base.**
+9. **Modele de plan par tenant en base.**
    Table `organization_plan` (ou equivalent), migration du gating actuel par variables
    d'environnement (`AppProperties.Plan`, #24) vers une lecture par tenant, en conservant
    `AppProperties.Plan` comme valeur par defaut/fallback pour les instances mono-tenant qui ne
    passent pas par cette table.
-7. **Strategie de bascule / coexistence + outillage d'exploitation par tenant.**
-   Decision et outillage pour les instances mono-tenant existantes (migration vers le SaaS
-   mutualise, ou coexistence durable) ; adaptation de `scripts/backup-loop.sh` (aujourd'hui un
-   `pg_dump` de toute la base) pour permettre un export/suppression par organisation, requis des
-   que plusieurs organisations partagent une base.
+10. **Strategie de bascule / coexistence + outillage d'exploitation par tenant.**
+    Decision et outillage pour les instances mono-tenant existantes (migration vers le SaaS
+    mutualise, ou coexistence durable) ; adaptation de `scripts/backup-loop.sh` (aujourd'hui un
+    `pg_dump` de toute la base) pour permettre un export/suppression par organisation, requis des
+    que plusieurs organisations partagent une base.
 
 ## Note d'architecture — strategie d'isolation retenue
 
@@ -123,12 +142,12 @@ Justification :
   findAllByActiveTrueOrderByNameAsc()` sans filtre) : un point d'entree non garde suffit a exposer
   les donnees d'une autre organisation. Une isolation row-level fiable exige donc un audit
   exhaustif de **tous** les points d'entree (pas seulement des requetes qui referencent `shop_id`),
-  ce qui est precisement le travail du ticket de suivi n°3.
+  ce qui est precisement le travail des tickets de suivi n°3 a 6 (propagation module par module).
 - Recommandation : ne pas se reposer uniquement sur le filtrage applicatif. Ajouter des policies
   PostgreSQL Row-Level Security sur les tables metier (`shops`, `customers`, `products`,
   `credit_sales`, `payments`, `installments`, etc.), activees via une variable de session
   (`SET app.current_org_id = ...`) positionnee en tout debut de requete. Cout d'implementation
-  non negligeable (ticket de suivi n°4) mais c'est la seule garde qui protege contre un oubli de
+  non negligeable (ticket de suivi n°7) mais c'est la seule garde qui protege contre un oubli de
   filtre dans une `Specification` ou une requete JPQL ecrite manuellement — la classe de bug la
   plus probable et la plus difficile a detecter en revue de code humaine, a fortiori en revue
   automatisee.
@@ -157,14 +176,14 @@ d'acceptation « les instances single-tenant existantes ne sont pas cassees ».
 une configuration par instance (`app.plan.multi-shop`, `app.plan.whatsapp-auto`, variables
 d'environnement `PLAN_MULTI_SHOP`/`PLAN_WHATSAPP_AUTO`, validee au demarrage par
 `PlanConfigValidator`). Dans une base mutualisee, la formule doit devenir un attribut de
-l'organisation en base (table dediee, ticket de suivi n°6), resolue par requete au lieu d'etre
+l'organisation en base (table dediee, ticket de suivi n°9), resolue par requete au lieu d'etre
 figee au demarrage du conteneur — sauf pour `whatsappAuto`, qui restera necessairement une
 contrainte au niveau de l'instance tant que le canal WhatsApp reste selectionne par bean Spring
 (`@ConditionalOnProperty` sur `app.notification.channel`, une seule valeur par processus JVM) :
 une base mutualisee ne peut pas avoir un sous-ensemble d'organisations avec WhatsApp automatique
 et d'autres non, sans revoir aussi l'architecture d'envoi de notifications (canal resolu par
 organisation a l'execution plutot que par bean unique) — point a traiter explicitement dans la
-spec du ticket de suivi n°6, pas suppose resolu par la seule table de plan.
+spec du ticket de suivi n°9, pas suppose resolu par la seule table de plan.
 
 ## Fichiers/modules impactes
 
@@ -241,17 +260,17 @@ Inventaire (pour information, a charge des tickets de suivi listes ci-dessus —
   `PUBLIC_ENDPOINTS`), la seule protection est l'imprevisibilite du nom de fichier (UUID). C'est un
   risque preexistant, independant de ce ticket, mais qui devient un vrai risque de fuite
   inter-organisation des qu'une base mutualisee expose plusieurs clients derriere la meme URL de
-  base — a traiter explicitement dans le ticket de suivi n°5, pas comme un simple ajout de
+  base — a traiter explicitement dans le ticket de suivi n°8, pas comme un simple ajout de
   filtrage applicatif.
 - **`scripts/backup-loop.sh` fait un `pg_dump` complet de la base**, sans notion de tenant. En mode
   SaaS mutualise, ceci empeche toute sauvegarde, export ou suppression ciblee d'un seul client
   (obligation contractuelle ou reglementaire potentielle) sans outillage dedie — a traiter dans le
-  ticket de suivi n°7 avant d'onboarder un premier client reel en mode mutualise.
+  ticket de suivi n°10 avant d'onboarder un premier client reel en mode mutualise.
 - **RLS Postgres a un cout de test** : les policies RLS changent le comportement selon la session
   applicative (pool de connexions, variable de session `SET app.current_org_id`) — le pool de
   connexions JPA/Hibernate doit garantir que cette variable est repositionnee a chaque emprunt de
   connexion, sinon une connexion reutilisee sans re-`SET` fuiterait silencieusement les donnees du
-  tenant precedent. Point de vigilance explicite pour le ticket de suivi n°4.
+  tenant precedent. Point de vigilance explicite pour le ticket de suivi n°7.
 - **Aucun code n'a ete ecrit ni modifie pour produire cette note** : les decisions ci-dessus sont
   fondees sur une lecture du code actuel (fichiers cites), pas sur un prototype. Le ticket de
   suivi n°1 (fondation de donnees) devra revalider en pratique que le pattern `shop_id` deja en
@@ -266,8 +285,9 @@ Inventaire (pour information, a charge des tickets de suivi listes ci-dessus —
   tenant, et de l'outillage de bascule/coexistence : tous delegues aux tickets de suivi listes
   ci-dessus.
 - Le choix definitif entre backfill NOT NULL vs colonne nullable temporaire pour
-  `shops.organization_id`, et le detail du schema de la table `organizations` (champs, contraintes)
-  : a trancher dans la spec du ticket de suivi n°1, pas dans cette note d'architecture.
+  `shops.organization_id` et `users.organization_id`, et le detail du schema de la table
+  `organizations` (champs, contraintes) : a trancher dans la spec du ticket de suivi n°1, pas dans
+  cette note d'architecture.
 - La mutualisation complete du canal de notification WhatsApp par organisation (canal resolu a
   l'execution plutot que par bean Spring unique) : non demandee par ce ticket, non necessaire tant
   qu'`app.plan.whatsapp-auto` reste une contrainte au niveau instance (voir Decisions cles).
