@@ -11,6 +11,8 @@ public record AuthResponse(
         LocalDateTime expiresAt,
         UserResponse user,
         /** Boutiques accessibles resolues par CurrentShopContext, pour peupler le selecteur frontend. */
-        List<ShopSummary> accessibleShops
+        List<ShopSummary> accessibleShops,
+        /** Fonctionnalites incluses dans la formule de cette instance. */
+        PlanSummary plan
 ) {
 }

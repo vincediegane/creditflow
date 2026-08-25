@@ -2,6 +2,7 @@ package com.creditflow.shop.service;
 
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.config.AppProperties;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.dto.ShopRequest;
 import com.creditflow.shop.dto.ShopResponse;
@@ -21,6 +22,7 @@ public class ShopService {
 
     private final ShopRepository shopRepository;
     private final ShopMapper shopMapper;
+    private final AppProperties properties;
 
     @Transactional(readOnly = true)
     public List<ShopResponse> list() {
@@ -43,6 +45,7 @@ public class ShopService {
 
     @Transactional
     public ShopResponse create(ShopRequest request) {
+        assertPlanAllowsActive(effectiveActive(request, null), false, null);
         assertNameAvailable(request.name(), null);
 
         Shop shop = shopMapper.toEntity(request);
@@ -54,6 +57,7 @@ public class ShopService {
     @Transactional
     public ShopResponse update(Long id, ShopRequest request) {
         Shop shop = getEntity(id);
+        assertPlanAllowsActive(effectiveActive(request, shop), shop.isActive(), id);
         assertNameAvailable(request.name(), id);
 
         shopMapper.updateEntity(request, shop);
@@ -72,6 +76,35 @@ public class ShopService {
                 : shopRepository.existsByNameIgnoreCaseAndIdNot(name, id);
         if (exists) {
             throw new BusinessRuleException("Une boutique utilise deja le nom " + name);
+        }
+    }
+
+    /** Etat actif resultant de la requete, en repliquant la semantique de ShopMapper
+     *  (create: null -> true ; update: null -> etat courant inchange). */
+    private boolean effectiveActive(ShopRequest request, Shop existing) {
+        if (request.active() != null) {
+            return request.active();
+        }
+        return existing == null || existing.isActive();
+    }
+
+    /**
+     * N'evalue le plan que sur une veritable activation (creation active, ou reactivation
+     * d'une boutique jusque-la inactive) : une boutique deja active qui reste active ne doit
+     * jamais etre bloquee retroactivement, meme si d'autres boutiques actives existent deja
+     * en base sur une instance dont le plan a ete degrade apres coup.
+     */
+    private void assertPlanAllowsActive(boolean requestedActive, boolean wasActive, Long excludingShopId) {
+        if (!requestedActive || wasActive || properties.getPlan().isMultiShop()) {
+            return;
+        }
+        boolean anotherActiveShopExists = excludingShopId == null
+                ? shopRepository.countByActiveTrue() > 0
+                : shopRepository.existsByActiveTrueAndIdNot(excludingShopId);
+        if (anotherActiveShopExists) {
+            throw new BusinessRuleException(
+                    "Votre formule actuelle ne permet qu'une seule boutique active. "
+                    + "Contactez l'exploitant de la plateforme pour passer à la formule Multi-boutiques.");
         }
     }
 }

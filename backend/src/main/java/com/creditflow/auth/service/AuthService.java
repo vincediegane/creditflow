@@ -4,12 +4,14 @@ import com.creditflow.auth.domain.User;
 import com.creditflow.auth.dto.AuthResponse;
 import com.creditflow.auth.dto.ChangePasswordRequest;
 import com.creditflow.auth.dto.LoginRequest;
+import com.creditflow.auth.dto.PlanSummary;
 import com.creditflow.auth.dto.UserResponse;
 import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.auth.security.JwtService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.security.CurrentShopContext;
+import com.creditflow.config.AppProperties;
 import com.creditflow.shop.dto.ShopSummary;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final CurrentShopContext currentShopContext;
+    private final AppProperties properties;
 
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
@@ -44,10 +47,12 @@ public class AuthService {
         String token = jwtService.generateToken(user.getUsername(), user.getRole().name());
         log.info("Connexion reussie pour {}", user.getUsername());
 
+        PlanSummary plan = new PlanSummary(properties.getPlan().isMultiShop(), properties.getPlan().isWhatsappAuto());
+
         // authenticationManager.authenticate() ne peuple pas le SecurityContext : les boutiques
         // accessibles sont resolues depuis l'utilisateur deja charge, pas depuis le contexte courant.
         return new AuthResponse(token, "Bearer", jwtService.expiryOf(token), toResponse(user),
-                currentShopContext.accessibleShops(user));
+                currentShopContext.accessibleShops(user), plan);
     }
 
     @Transactional(readOnly = true)

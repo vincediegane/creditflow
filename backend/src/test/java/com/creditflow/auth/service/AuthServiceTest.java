@@ -10,6 +10,7 @@ import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.auth.security.JwtService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.security.CurrentShopContext;
+import com.creditflow.config.AppProperties;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.dto.ShopSummary;
 import com.creditflow.shop.repository.ShopRepository;
@@ -56,6 +57,9 @@ class AuthServiceTest {
     @Mock
     private CurrentShopContext currentShopContext;
 
+    @Mock
+    private AppProperties properties;
+
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     private AuthService authService;
@@ -63,8 +67,9 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
+        when(properties.getPlan()).thenReturn(new AppProperties.Plan());
         authService = new AuthService(authenticationManager, userRepository, jwtService,
-                passwordEncoder, currentShopContext);
+                passwordEncoder, currentShopContext, properties);
 
         user = User.builder()
                 .id(1L)
@@ -138,6 +143,18 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("la connexion expose la formule (plan) de cette instance")
+    void loginIncludesPlan() {
+        when(jwtService.generateToken("admin", "ADMIN")).thenReturn("token");
+
+        AuthResponse response = authService.login(new LoginRequest("admin", "MotDePasseInitial1"));
+
+        assertThat(response.plan()).isNotNull();
+        assertThat(response.plan().multiShop()).isTrue();
+        assertThat(response.plan().whatsappAuto()).isTrue();
+    }
+
+    @Test
     @DisplayName("la connexion resout les boutiques sans dependre du SecurityContext (encore anonyme a ce stade)")
     void loginResolvesAccessibleShopsWhileStillAnonymous() {
         SecurityContextHolder.getContext().setAuthentication(new AnonymousAuthenticationToken(
@@ -147,7 +164,7 @@ class AuthServiceTest {
         when(shopRepository.findAllByActiveTrueOrderByNameAsc())
                 .thenReturn(List.of(Shop.builder().id(1L).name("Boutique principale").active(true).build()));
         AuthService service = new AuthService(authenticationManager, userRepository, jwtService, passwordEncoder,
-                new CurrentShopContext(userRepository, shopRepository));
+                new CurrentShopContext(userRepository, shopRepository), properties);
         when(jwtService.generateToken("admin", "ADMIN")).thenReturn("token");
 
         AuthResponse response = service.login(new LoginRequest("admin", "MotDePasseInitial1"));

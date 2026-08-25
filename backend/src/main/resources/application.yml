@@ -101,3 +101,6 @@ app:
       template-language-code: ${WHATSAPP_TEMPLATE_LANGUAGE_CODE:fr}
   demo:
     seed: ${DEMO_SEED:true}
+  plan:
+    multi-shop: ${PLAN_MULTI_SHOP:true}
+    whatsapp-auto: ${PLAN_WHATSAPP_AUTO:true}

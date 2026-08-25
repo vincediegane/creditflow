@@ -14,4 +14,8 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
     boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 
     List<Shop> findAllByActiveTrueOrderByNameAsc();
+
+    long countByActiveTrue();
+
+    boolean existsByActiveTrueAndIdNot(Long id);
 }

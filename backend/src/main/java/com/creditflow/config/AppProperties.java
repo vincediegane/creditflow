@@ -19,6 +19,7 @@ public class AppProperties {
     private Reminder reminder = new Reminder();
     private Notification notification = new Notification();
     private Demo demo = new Demo();
+    private Plan plan = new Plan();
 
     @Getter
     @Setter
@@ -103,5 +104,20 @@ public class AppProperties {
     @Setter
     public static class Demo {
         private boolean seed = true;
+    }
+
+    @Getter
+    @Setter
+    public static class Plan {
+        /**
+         * Formule Essentiel (une seule boutique) vs Pro/Multi-boutiques.
+         * Defaut true : ne jamais bloquer retroactivement une instance existante.
+         */
+        private boolean multiShop = true;
+        /**
+         * Formule sans le canal WhatsApp automatique. Verifie au demarrage
+         * par PlanConfigValidator, pas a l'execution (le canal est fige par bean Spring).
+         */
+        private boolean whatsappAuto = true;
     }
 }

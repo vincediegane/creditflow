@@ -35,6 +35,11 @@ export interface ShopSummary {
   name: string;
 }
 
+export interface PlanSummary {
+  multiShop: boolean;
+  whatsappAuto: boolean;
+}
+
 export interface User {
   id: number;
   username: string;
@@ -114,6 +119,7 @@ export interface AuthResponse {
   expiresAt: string;
   user: User;
   accessibleShops: ShopSummary[];
+  plan: PlanSummary;
 }
 
 export interface Customer {
