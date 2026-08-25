@@ -263,8 +263,8 @@ def build_pitch(path: Path):
     cover(prs, "Solution de gestion pour boutique",
           "CreditFlow",
           "Digitaliser la vente à crédit de téléphones et d'ordinateurs :\n"
-          "clients, échéances, paiements et relances.",
-          "Présentation commerciale — MVP opérationnel")
+          "clients, échéances, paiements, relances — même sans réseau.",
+          "Présentation commerciale — 14 chantiers livrés, prêt pour un déploiement client")
 
     # --- Le problème ---------------------------------------------------
     p += 1
@@ -356,10 +356,14 @@ def build_pitch(path: Path):
               ["Enregistrer un paiement", "Une ligne dans un cahier", "✓ 3 clics, tout se met à jour"],
               ["Connaître le reste dû", "Reconstituer l'historique", "✓ Affiché en permanence"],
               ["Clients en retard", "Découverts trop tard", "✓ Tableau dédié, jours de retard"],
-              ["Relances", "Message générique groupé", "✓ Message personnalisé par client"],
-              ["Rapports", "Inexistants", "✓ Export PDF et Excel"],
+              ["Relances", "Message générique groupé", "✓ Personnalisé, envoi WhatsApp automatique"],
+              ["Rapports", "Inexistants", "✓ Export PDF et Excel, taux de défaut inclus"],
+              ["Qui a fait quoi", "Aucune trace", "✓ Journal d'audit complet"],
+              ["Plusieurs boutiques", "Un cahier par boutique", "✓ Vue consolidée ou par boutique"],
+              ["Coupure réseau", "Vente à l'arrêt", "✓ Encaissement hors-ligne, sync automatique"],
+              ["Documents remis au client", "Rien d'officiel, ou fait à la main", "✓ Facture et bon de livraison PDF"],
           ],
-          [0.26, 0.34, 0.40])
+          [0.26, 0.34, 0.40], row_h=Inches(0.385))
     footer(s, "CreditFlow — Présentation commerciale", p + 1)
 
     # --- Le coeur du produit -------------------------------------------
@@ -400,8 +404,10 @@ def build_pitch(path: Path):
          "Jours de retard, montant dû, téléphone : tout est affiché, trié par urgence."),
         ("Un bouton « Générer la relance »",
          "Le message est écrit avec le nom du client et son montant réel."),
-        ("Le commerçant copie et envoie",
-         "WhatsApp ou SMS, comme aujourd'hui — mais avec le bon message."),
+        ("Envoi automatique par lot, ou copie manuelle",
+         "WhatsApp Cloud API en un clic pour tous les retards, ou copier-coller au cas par cas."),
+        ("Chaque envoi est historisé",
+         "Date, canal et statut de la relance sont conservés — aucun oubli."),
     ])
     panel(s, MARGIN + Inches(6.8), Inches(2.15), Inches(5.0), Inches(2.9),
           "Message généré", [
@@ -412,9 +418,35 @@ def build_pitch(path: Path):
               ("Merci pour votre confiance.", False),
           ], accent=ORANGE)
     panel(s, MARGIN, Inches(5.35), CONTENT_W, Inches(1.05),
-          "Et demain",
-          [("L'envoi automatique par WhatsApp Cloud API est déjà prévu dans l'architecture : "
-            "il s'activera sans réécrire l'application.", False)], accent=BLUE)
+          "Déjà en production",
+          [("L'envoi automatique par WhatsApp Cloud API est opérationnel : le commerçant "
+            "choisit son canal, la copie manuelle reste disponible en secours.", False)],
+          accent=GREEN)
+    footer(s, "CreditFlow — Présentation commerciale", p + 1)
+
+    # --- Chantiers livrés --------------------------------------------------
+    p += 1
+    s = blank(prs)
+    page_header(s, "Journal des livraisons", "Quatorze chantiers, tous fermés et vérifiés", GREEN)
+    table(s, MARGIN, Inches(1.95), int(CONTENT_W),
+          ["Priorité", "Chantier", "Ce qu'il apporte"],
+          [
+              ["P0", "Comptes vendeur / caissier", "Rôles distincts : chacun n'accède qu'à ce qui le concerne"],
+              ["P0", "Journal d'audit", "Qui a encaissé, annulé ou modifié un prix — et quand"],
+              ["P0", "Taux d'intérêt / frais de dossier", "Le prix à crédit reflète le modèle économique réel"],
+              ["P1", "Pénalité de retard configurable", "Un levier de recouvrement, pas qu'un indicateur"],
+              ["P1", "Relances automatiques", "SMS ou WhatsApp en masse, copie manuelle en secours"],
+              ["P1", "Signature électronique", "Pièce d'identité et signature jointes au contrat"],
+              ["P1", "Garant / caution", "Sécurise le recouvrement sur les montants élevés"],
+              ["P1", "Contrat depuis la fiche client", "Un client, un clic : plus besoin de le rechercher deux fois"],
+              ["P2", "Achats fournisseurs", "Le stock reflète les entrées réelles, pas que les ventes"],
+              ["P2", "Statistiques avancées", "Taux de défaut par profil, performance par vendeur"],
+              ["P2", "Multi-boutiques", "Un tableau de bord consolidé, ou filtré par boutique"],
+              ["P2", "Mode hors-ligne", "Un paiement saisi sans réseau se synchronise seul"],
+              ["P2", "Facture PDF", "Document officiel prêt à remettre au client à chaque vente"],
+              ["P2", "Bon de livraison", "Preuve signée de ce qui a été remis, distincte de la facture"],
+          ],
+          [0.12, 0.30, 0.58], row_h=Inches(0.32))
     footer(s, "CreditFlow — Présentation commerciale", p + 1)
 
     # --- Pilotage ------------------------------------------------------
@@ -428,12 +460,14 @@ def build_pitch(path: Path):
         ("Prochaines échéances", "Ce qui est attendu dans les 30 jours", ORANGE),
     ], height=Inches(1.7))
     text(s, MARGIN, Inches(4.25), CONTENT_W, Inches(0.4),
-         [("Et quatre rapports exportables en PDF et Excel :", 16, True, INK)])
+         [("Et six rapports exportables en PDF et Excel :", 16, True, INK)])
     bullets(s, MARGIN, Inches(4.8), CONTENT_W, [
         ("Paiements du jour  •  Paiements du mois  •  Clients en retard  •  Créances restantes",
          None),
-    ], size=15)
-    panel(s, MARGIN, Inches(5.45), CONTENT_W, Inches(1.0),
+        ("Taux de défaut par profil client  •  Performance de chaque vendeur (réservé au gérant)",
+         None),
+    ], size=15, gap=Inches(0.34))
+    panel(s, MARGIN, Inches(5.6), CONTENT_W, Inches(0.95),
           "Bénéfice",
           [("Des chiffres fiables pour décider : relancer, accorder un nouveau crédit, "
             "ou réapprovisionner.", False)], accent=GREEN)
@@ -466,9 +500,13 @@ def build_pitch(path: Path):
     page_header(s, "Fiabilité", "Une base technique sérieuse, pas un prototype")
     bullets(s, MARGIN, Inches(2.15), Inches(6.2), [
         ("Technologies éprouvées", "Java 21 / Spring Boot, React, PostgreSQL, Docker."),
-        ("Accès protégé", "Connexion par mot de passe, session sécurisée par jeton."),
-        ("Données maîtrisées", "Base versionnée par migrations : aucune perte, aucune surprise."),
-        ("Testé et vérifié", "32 tests automatisés et une validation complète en conditions réelles."),
+        ("Accès protégé", "Rôles par utilisateur, session sécurisée par jeton, journal d'audit."),
+        ("Données maîtrisées", "Base versionnée par migrations, hébergée chez le client, aucune "
+         "dépendance cloud tierce."),
+        ("Testé et vérifié", "322 tests backend et 16 tests dédiés à la synchronisation "
+         "hors-ligne, tous au vert."),
+        ("Sauvegardé automatiquement", "Sauvegarde au démarrage puis toutes les 24 h, "
+         "14 jours de rétention, restauration testée."),
     ])
     panel(s, MARGIN + Inches(6.7), Inches(2.15), Inches(5.1), Inches(3.2),
           "Installation", [
@@ -481,35 +519,74 @@ def build_pitch(path: Path):
           ], accent=GREEN)
     footer(s, "CreditFlow — Présentation commerciale", p + 1)
 
-    # --- Roadmap -------------------------------------------------------
+    # --- Multi-boutiques -------------------------------------------------
     p += 1
     s = blank(prs)
-    page_header(s, "La suite", "Une trajectoire déjà préparée")
-    steps = [
-        ("Aujourd'hui", "MVP mono-boutique", "Toutes les fonctions du quotidien sont opérationnelles.", GREEN),
-        ("Étape 2", "Envoi automatique", "Relances WhatsApp Cloud API, sans copier-coller.", BLUE),
-        ("Étape 3", "SaaS multi-boutiques", "Plusieurs boutiques, chacune avec ses données.", BLUE_LIGHT),
-    ]
-    n = len(steps)
-    gap = Inches(0.3)
-    w = int((CONTENT_W - gap * (n - 1)) / n)
-    for i, (when, title, desc, color) in enumerate(steps):
-        x = MARGIN + i * (w + gap)
-        rect(s, x, Inches(2.4), Emu(w), Inches(2.6), fill=WHITE, line=BORDER,
-             shape=MSO_SHAPE.ROUNDED_RECTANGLE)
-        rect(s, x, Inches(2.4), Emu(w), Inches(0.09), fill=color)
-        text(s, x + Inches(0.3), Inches(2.75), Emu(w) - Inches(0.6), Inches(0.35),
-             [(when.upper(), 12, True, color)])
-        text(s, x + Inches(0.3), Inches(3.2), Emu(w) - Inches(0.6), Inches(0.5),
-             [(title, 19, True, INK)])
-        text(s, x + Inches(0.3), Inches(3.85), Emu(w) - Inches(0.6), Inches(1.0),
-             [(desc, 13, False, MUTED)], line_spacing=1.2)
-    panel(s, MARGIN, Inches(5.3), CONTENT_W, Inches(1.15),
-          "Pourquoi c'est crédible",
-          [("Le code est organisé par module métier et l'envoi de relances est déjà isolé "
-            "derrière une interface dédiée.", False),
-           ("Passer au multi-boutiques et à WhatsApp est une extension, pas une réécriture.",
-            True)], accent=GREEN)
+    page_header(s, "Grandir sans changer d'outil", "Une boutique aujourd'hui, plusieurs demain")
+    text(s, MARGIN, Inches(2.05), CONTENT_W, Inches(0.5),
+         [("Le même outil accompagne l'ouverture d'un second point de vente, sans migration "
+           "ni nouvel abonnement.", 15, False, MUTED)], line_spacing=1.2)
+    bullets(s, MARGIN, Inches(2.7), Inches(6.2), [
+        ("Un utilisateur voit sa boutique, et seulement la sienne",
+         "Clients, produits, contrats et paiements restent cloisonnés par boutique."),
+        ("Le gérant voit tout, ou une boutique à la fois",
+         "Tableau de bord consolidé par défaut, filtre d'un clic sur une boutique précise."),
+        ("Les rapports suivent le même principe",
+         "Aucune régression sur le fonctionnement mono-boutique existant."),
+    ])
+    panel(s, MARGIN + Inches(6.6), Inches(2.7), Inches(5.2), Inches(3.0),
+          "Vue consolidée du gérant", [
+              ("Boutique Centre-ville", True), ("Reste à récupérer : 1 240 000 FCFA", False),
+              ("Boutique Marché", True), ("Reste à récupérer : 860 000 FCFA", False),
+              ("", False),
+              ("Total consolidé  →  2 100 000 FCFA", True),
+          ], accent=BLUE)
+    footer(s, "CreditFlow — Présentation commerciale", p + 1)
+
+    # --- Mode hors-ligne ---------------------------------------------------
+    p += 1
+    s = blank(prs)
+    page_header(s, "Travailler sans réseau", "Une coupure ne doit jamais coûter un encaissement", GREEN)
+    text(s, MARGIN, Inches(2.05), CONTENT_W, Inches(0.5),
+         [("Pensé pour le vendeur en tournée de recouvrement, là où la connexion est la "
+           "moins fiable.", 15, False, MUTED)], line_spacing=1.2)
+    bullets(s, MARGIN, Inches(2.7), Inches(6.2), [
+        ("Le paiement se saisit normalement, réseau ou pas",
+         "Sans connexion, il apparaît « en attente » au lieu d'être bloqué."),
+        ("La synchronisation part seule au retour du réseau",
+         "Aucune manipulation : l'application détecte la reconnexion."),
+        ("Un conflit est signalé, jamais écrasé en silence",
+         "Contrat déjà soldé entre-temps ? Le vendeur est prévenu, rien n'est perdu ni doublé."),
+        ("La consultation des contrats déjà ouverts reste disponible",
+         "L'application s'installe comme une app mobile, même hors connexion."),
+    ])
+    panel(s, MARGIN + Inches(6.6), Inches(2.7), Inches(5.2), Inches(3.3),
+          "Ce qui protège l'argent encaissé", [
+              ("Chaque paiement porte un identifiant unique", False),
+              ("généré à la saisie : rejouer la synchronisation", False),
+              ("ne peut jamais créer de doublon.", False),
+              ("", False),
+              ("Vérifié par des tests automatisés dédiés", True),
+              ("à ce mécanisme précis.", True),
+          ], accent=GREEN)
+    footer(s, "CreditFlow — Présentation commerciale", p + 1)
+
+    # --- Avant la mise en service -----------------------------------------
+    p += 1
+    s = blank(prs)
+    page_header(s, "En toute franchise", "Ce qui reste à vérifier avant la mise en service", ORANGE)
+    bullets(s, MARGIN, Inches(2.15), CONTENT_W, [
+        ("Un certificat HTTPS est requis pour le mode hors-ligne complet",
+         "Sans lui, l'encaissement hors-ligne fonctionne ; la lecture des fiches sans réseau non."),
+        ("Le scénario de conflit mérite un dernier passage terrain",
+         "Le mécanisme est testé automatiquement ; une vérification en conditions réelles "
+         "reste recommandée avant un déploiement à volume important."),
+    ], gap=Inches(0.9))
+    panel(s, MARGIN, Inches(4.6), CONTENT_W, Inches(1.3),
+          "Pourquoi le dire",
+          [("Un produit livré ne veut pas dire un produit qu'on cesse de vérifier. "
+            "Ces deux points sont documentés, compris, et n'empêchent pas une mise en "
+            "service — ils encadrent la première semaine d'usage.", False)], accent=BLUE)
     footer(s, "CreditFlow — Présentation commerciale", p + 1)
 
     # --- Ce qui est livré ----------------------------------------------
@@ -517,9 +594,9 @@ def build_pitch(path: Path):
     s = blank(prs)
     page_header(s, "Livraison", "Ce qui est disponible dès maintenant", GREEN)
     stat_cards(s, Inches(2.15), [
-        ("9", "modules fonctionnels couvrant tout le processus", BLUE),
-        ("100 %", "des fonctions du MVP opérationnelles", GREEN),
-        ("32", "tests automatisés au vert", GREEN),
+        ("18", "modules fonctionnels couvrant tout le processus", BLUE),
+        ("14 / 14", "chantiers du backlog livrés et vérifiés", GREEN),
+        ("338", "tests automatisés au vert (backend + hors-ligne)", GREEN),
         ("1", "commande pour tout démarrer", ORANGE),
     ])
     text(s, MARGIN, Inches(4.15), CONTENT_W, Inches(0.4),
@@ -570,6 +647,7 @@ def build_demo(path: Path):
         text(s, MARGIN + Inches(0.3), Inches(2.95), Inches(5.8), Inches(0.3),
              [("CE QUE JE FAIS À L'ÉCRAN", 11.5, True, accent)])
         cy = Inches(3.45)
+        action_gap = min(0.62, 2.6 / max(len(actions), 1))
         for i, action in enumerate(actions, start=1):
             rect(s, MARGIN + Inches(0.3), cy, Inches(0.32), Inches(0.32),
                  fill=accent, shape=MSO_SHAPE.OVAL)
@@ -577,7 +655,7 @@ def build_demo(path: Path):
                  [(str(i), 11, True, WHITE)], align=PP_ALIGN.CENTER)
             text(s, MARGIN + Inches(0.78), cy + Inches(0.02), Inches(5.35), Inches(0.6),
                  [(action, 13.5, False, INK)], line_spacing=1.15)
-            cy += Inches(0.62)
+            cy += Inches(action_gap)
 
         # colonne droite : ce qu'il faut montrer
         rect(s, MARGIN + Inches(6.75), Inches(2.65), Inches(5.05), Inches(3.55),
@@ -586,12 +664,13 @@ def build_demo(path: Path):
         text(s, MARGIN + Inches(7.05), Inches(2.95), Inches(4.45), Inches(0.3),
              [("CE QU'IL FAUT SOULIGNER", 11.5, True, GREEN)])
         cy = Inches(3.45)
+        watch_gap = min(0.68, 2.6 / max(len(watch), 1))
         for item in watch:
             rect(s, MARGIN + Inches(7.05), cy + Inches(0.08), Inches(0.12), Inches(0.12),
                  fill=GREEN, shape=MSO_SHAPE.OVAL)
             text(s, MARGIN + Inches(7.35), cy, Inches(4.15), Inches(0.7),
                  [(item, 13, False, INK)], line_spacing=1.15)
-            cy += Inches(0.68)
+            cy += Inches(watch_gap)
 
         # 3 diapositives précèdent les étapes : couverture, préparation, sommaire
         footer(s, "CreditFlow — Démonstration guidée", num + 3)
@@ -601,9 +680,9 @@ def build_demo(path: Path):
     # --- Couverture ----------------------------------------------------
     cover(prs, "Présentation guidée",
           "CreditFlow en démonstration",
-          "Parcours complet en 14 étapes : du client à la relance,\n"
-          "en passant par le contrat, l'encaissement et les rapports.",
-          "Durée indicative : 15 à 20 minutes")
+          "Parcours complet en 18 étapes : du client à la relance,\n"
+          "multi-boutiques et hors-ligne compris.",
+          "Durée indicative : 25 à 30 minutes")
 
     # --- Avant de commencer --------------------------------------------
     s = blank(prs)
@@ -632,37 +711,39 @@ def build_demo(path: Path):
     s = blank(prs)
     page_header(s, "Sommaire", "Le parcours en un coup d'œil")
     left = [
-        "1.  Connexion", "2.  Tableau de bord", "3.  Liste des clients",
-        "4.  Fiche client complète", "5.  Catalogue produits",
-        "6.  Créer une vente à crédit", "7.  Le contrat et son échéancier",
+        "1.  Connexion", "2.  Tableau de bord", "3.  Boutiques et vue consolidée",
+        "4.  Liste des clients", "5.  Fiche client complète",
+        "6.  Catalogue produits", "7.  Achats fournisseurs et stock",
+        "8.  Créer une vente à crédit", "9.  Le contrat et son échéancier",
     ]
     right = [
-        "8.  Encaisser un paiement", "9.  Les mises à jour automatiques",
-        "10. Suivi des échéances", "11. Clients en retard et relance",
-        "12. Rapports et exports", "13. Recherche globale", "14. API et documentation",
+        "10. Encaisser un paiement", "11. Les mises à jour automatiques",
+        "12. Mode hors-ligne", "13. Suivi des échéances",
+        "14. Clients en retard et relance", "15. Rapports et exports",
+        "16. Recherche globale", "17. Utilisateurs et rôles", "18. API et documentation",
     ]
     for col, items in ((MARGIN, left), (MARGIN + Inches(6.1), right)):
-        cy = Inches(2.25)
+        cy = Inches(2.05)
         for item in items:
-            text(s, col, cy, Inches(5.6), Inches(0.4),
-                 [(item, 15, False, INK)])
-            rect(s, col, cy + Inches(0.4), Inches(5.4), Inches(0.012), fill=BORDER)
-            cy += Inches(0.6)
+            text(s, col, cy, Inches(5.6), Inches(0.38),
+                 [(item, 14, False, INK)])
+            rect(s, col, cy + Inches(0.38), Inches(5.4), Inches(0.012), fill=BORDER)
+            cy += Inches(0.52)
     footer(s, "CreditFlow — Démonstration guidée", 3)
 
     # --- Étapes --------------------------------------------------------
     step_slide(
         1, "Connexion",
-        "Un seul compte administrateur, créé automatiquement au premier démarrage.",
+        "Un compte administrateur créé automatiquement, des comptes vendeurs à la demande.",
         ["Ouvrir http://localhost:3010",
          "Saisir admin / admin123",
          "Cliquer sur « Se connecter »"],
         ["L'accès est protégé : sans connexion, aucune donnée n'est accessible.",
          "Le compte administrateur est créé tout seul, aucune installation manuelle.",
          "La session reste ouverte, le commerçant ne se reconnecte pas sans arrêt."],
-        "Insister sur la simplicité : un seul compte pour la boutique. "
-        "Le multi-utilisateurs viendra avec la version SaaS. "
-        "Le mot de passe est modifiable dans le fichier .env.")
+        "Insister sur la simplicité du premier démarrage : un seul compte suffit "
+        "pour commencer. La création de comptes vendeurs avec des droits limités "
+        "est montrée à l'étape 17. Le mot de passe est modifiable dans le fichier .env.")
 
     step_slide(
         2, "Tableau de bord",
@@ -680,7 +761,22 @@ def build_demo(path: Path):
         "chaque chiffre mène à l'écran correspondant.")
 
     step_slide(
-        3, "Liste des clients",
+        3, "Boutiques et vue consolidée",
+        "Le tableau de bord change de nature dès qu'une deuxième boutique existe.",
+        ["Ouvrir le sélecteur de boutique dans la barre supérieure",
+         "Basculer entre « Toutes les boutiques » et une boutique précise",
+         "Montrer que les chiffres du tableau de bord se recalculent",
+         "Ouvrir « Boutiques » dans le menu (visible ADMIN uniquement)"],
+        ["Invisible si une seule boutique existe : aucune complexité imposée au démarrage.",
+         "Chaque utilisateur ne voit que les boutiques auxquelles il est rattaché.",
+         "La consolidation ne casse aucun rapport ni export existant."],
+        "À ne montrer que si le prospect gère ou envisage plusieurs points de vente. "
+        "Sinon, passer directement à l'étape suivante : le sélecteur reste discret "
+        "pour un commerçant mono-boutique.",
+        accent=BLUE_LIGHT)
+
+    step_slide(
+        4, "Liste des clients",
         "Retrouver n'importe quel client en une seconde.",
         ["Ouvrir « Clients » dans le menu latéral",
          "Taper un nom dans la recherche (ex. « Diallo »)",
@@ -694,22 +790,27 @@ def build_demo(path: Path):
         "ce qui évite les créances éclatées sur deux fiches.")
 
     step_slide(
-        4, "Fiche client complète",
+        5, "Fiche client complète",
         "Toute la relation commerciale d'un client sur un seul écran.",
         ["Cliquer sur l'icône « voir » d'un client",
          "Montrer le bloc « Situation financière »",
          "Faire défiler l'historique des achats",
-         "Puis l'historique des paiements"],
+         "Puis l'historique des paiements",
+         "Cliquer sur « Nouveau contrat » pour vendre à ce client, sans le rechercher à nouveau"],
         ["Total acheté, total payé, reste à payer, échéances en retard.",
          "Tous les contrats du client, avec leur statut.",
          "Tous les versements, avec date, mode et référence.",
-         "Une photo peut être ajoutée pour identifier le client."],
+         "Une photo peut être ajoutée pour identifier le client.",
+         "Le client est déjà présélectionné dans le formulaire de vente qui s'ouvre."],
         "C'est la réponse à la question la plus fréquente du commerçant : "
         "« Combien me doit ce client ? ». Avant, il fallait tout reconstituer. "
-        "Cliquer sur un contrat pour montrer qu'on rebondit vers son détail.")
+        "Montrer le bouton « Nouveau contrat » : c'est le raccourci le plus utilisé "
+        "au quotidien, il évite d'aller chercher le client une seconde fois dans "
+        "l'écran des ventes. Cliquer sur un contrat existant pour montrer qu'on "
+        "rebondit aussi vers son détail.")
 
     step_slide(
-        5, "Catalogue produits",
+        6, "Catalogue produits",
         "Les téléphones et ordinateurs vendus, avec leurs deux prix.",
         ["Ouvrir « Produits »",
          "Filtrer par catégorie",
@@ -723,38 +824,61 @@ def build_demo(path: Path):
         "un produit qu'on n'a plus.")
 
     step_slide(
-        6, "Créer une vente à crédit",
+        7, "Achats fournisseurs et stock",
+        "Le stock ne se corrige plus à la main : il se reconstitue par une vraie réception.",
+        ["Ouvrir « Fournisseurs », montrer la fiche d'un fournisseur",
+         "Ouvrir « Achats », créer une réception de stock",
+         "Choisir un ou plusieurs produits et leur quantité reçue",
+         "Valider, puis revenir sur la fiche produit pour voir le stock augmenté"],
+        ["Le stock reflète maintenant les entrées réelles, pas seulement les ventes.",
+         "L'historique des mouvements distingue clairement entrée (achat) et sortie (vente).",
+         "Aucune correction manuelle du stock n'est plus nécessaire."],
+        "Slide pour un commerçant qui gère aussi ses approvisionnements, pas seulement "
+        "sa caisse. À raccourcir si l'interlocuteur ne s'occupe que de la vente.")
+
+    step_slide(
+        8, "Créer une vente à crédit",
         "L'écran le plus important : c'est ici que naît la créance.",
         ["Cliquer sur « Nouvelle vente »",
          "Choisir un client, puis un produit",
          "Saisir l'acompte et le nombre de mensualités",
+         "Renseigner un garant si le montant ou le profil client le justifie",
          "Observer l'échéancier qui se calcule à droite, en direct"],
         ["Le prix se pré-remplit avec le prix à crédit du produit.",
          "L'échéancier apparaît AVANT d'enregistrer : rien n'est une surprise.",
          "Montant à financer, mensualité et date de fin sont calculés seuls.",
+         "Le garant est optionnel : nom, téléphone et adresse d'un tiers responsable.",
          "Le commerçant peut ajuster et voir l'effet immédiatement."],
         "MOMENT CLÉ DE LA DÉMO. Faire varier le nombre de mensualités devant le public "
-        "et montrer que l'échéancier se recalcule instantanément. "
-        "Le commerçant peut ainsi négocier avec le client, en direct au comptoir.",
+        "et montrer que l'échéancier se recalcule instantanément. Ajouter un garant "
+        "sur un montant élevé pour illustrer la sécurisation du recouvrement.",
         accent=GREEN)
 
     step_slide(
-        7, "Le contrat et son échéancier",
-        "Un contrat = un client, un produit, un échéancier daté.",
+        9, "Le contrat et son échéancier",
+        "Un contrat = un client, un produit, un échéancier daté — et ses preuves.",
         ["Ouvrir le contrat qui vient d'être créé",
          "Montrer le résumé et la barre de progression",
+         "Télécharger la facture PDF, puis le bon de livraison",
+         "Joindre une pièce d'identité scannée ou une signature tactile",
          "Parcourir le tableau des échéances",
          "Montrer une échéance en retard, en rouge"],
         ["Chaque échéance a son numéro, sa date, son montant et son statut.",
          "La somme des échéances est exactement égale au montant dû.",
+         "Facture, bon de livraison et reçu de paiement sont trois documents distincts, "
+         "chacun avec sa propre référence — jamais de doublon entre eux.",
+         "Le bon de livraison porte une zone de signature, prêt à être imprimé.",
+         "La pièce jointe est vérifiée sur son contenu réel, pas seulement son extension.",
          "Le retard est calculé en jours, automatiquement.",
          "Une référence unique identifie le contrat (ex. VC-2026-00021)."],
         "Expliquer l'arrondi : sur 100 000 FCFA en 3 fois, on obtient "
         "33 333 + 33 333 + 33 334. La dernière échéance absorbe le reliquat, "
-        "donc le compte tombe juste au franc près. C'est ce qui évite les litiges.")
+        "donc le compte tombe juste au franc près. C'est ce qui évite les litiges. "
+        "Ouvrir réellement la facture et le bon de livraison téléchargés : "
+        "montrer qu'ils ne se ressemblent pas, chacun a un objectif précis.")
 
     step_slide(
-        8, "Encaisser un paiement",
+        10, "Encaisser un paiement",
         "L'opération la plus fréquente doit être la plus rapide : trois clics.",
         ["Depuis le contrat, cliquer sur « Encaisser »",
          "Constater que le montant est déjà pré-rempli",
@@ -770,7 +894,7 @@ def build_demo(path: Path):
         accent=GREEN)
 
     step_slide(
-        9, "Ce que le paiement met à jour, tout seul",
+        11, "Ce que le paiement met à jour, tout seul",
         "Un seul geste, quatre mises à jour simultanées.",
         ["Revenir sur l'échéancier du contrat",
          "Montrer l'échéance passée à « Payée »",
@@ -787,7 +911,24 @@ def build_demo(path: Path):
         accent=GREEN)
 
     step_slide(
-        10, "Suivi des échéances",
+        12, "Mode hors-ligne",
+        "La panne réseau ne doit plus jamais interrompre un encaissement.",
+        ["Couper le réseau (mode avion, ou DevTools « Offline »)",
+         "Encaisser un paiement normalement : il passe « en attente »",
+         "Réactiver le réseau",
+         "Montrer la synchronisation automatique, sans action du vendeur"],
+        ["Le paiement hors-ligne est visible localement avec son statut « en attente ».",
+         "La synchronisation part seule dès que la connexion revient.",
+         "Un conflit (contrat soldé entre-temps) est signalé, jamais écrasé en silence.",
+         "Les fiches déjà consultées restent lisibles sans connexion."],
+        "Étape à fort impact pour un vendeur en tournée de recouvrement. Couper "
+        "vraiment le réseau devant le public : l'effet de la synchronisation "
+        "automatique au retour marque les esprits. Préciser qu'un certificat "
+        "HTTPS est nécessaire en production pour bénéficier de tout le mécanisme.",
+        accent=GREEN)
+
+    step_slide(
+        13, "Suivi des échéances",
         "Toutes les échéances de la boutique, filtrables.",
         ["Ouvrir « Échéances »",
          "Activer le filtre « En retard »",
@@ -802,52 +943,66 @@ def build_demo(path: Path):
         "de voir un chiffre périmé.")
 
     step_slide(
-        11, "Clients en retard et relance",
+        14, "Clients en retard et relance",
         "La fonction qui remplace le message groupé du début de mois.",
         ["Ouvrir « Relances »",
          "Parcourir le tableau, trié par ancienneté du retard",
          "Cliquer sur « Générer la relance » pour un client",
-         "Copier le message"],
+         "Montrer l'envoi automatique en masse, puis la copie manuelle en secours"],
         ["Jours de retard, montant dû, téléphone : tout est là.",
          "Le message est personnalisé avec le nom et le montant réel du client.",
-         "Un bouton ouvre directement WhatsApp avec le texte pré-rempli.",
-         "Aucun envoi automatique : le commerçant garde la main."],
+         "L'envoi par WhatsApp Cloud API est automatique, individuel ou en masse.",
+         "Chaque relance envoyée est historisée avec son statut."],
         "Comparer avec l'existant : aujourd'hui un message unique part à tous, "
-        "sans montant. Ici chaque client reçoit SON montant. "
-        "Préciser que l'envoi automatique par WhatsApp Cloud API est déjà prévu "
-        "dans l'architecture et s'ajoutera sans réécriture.",
+        "sans montant. Ici chaque client reçoit SON montant, par le canal "
+        "automatique — la copie manuelle reste disponible si le canal échoue.",
         accent=ORANGE)
 
     step_slide(
-        12, "Rapports et exports",
+        15, "Rapports et exports",
         "De quoi rendre des comptes, et archiver.",
         ["Ouvrir « Rapports »",
-         "Basculer entre les quatre rapports",
-         "Changer la date de référence",
+         "Basculer entre les six rapports disponibles",
+         "Montrer le taux de défaut par profession, puis la performance vendeur",
          "Télécharger en PDF, puis en Excel"],
         ["Paiements du jour, paiements du mois, clients en retard, créances restantes.",
-         "Les totaux sont calculés et affichés en haut du rapport.",
-         "Le PDF est prêt à imprimer ou à archiver.",
-         "L'Excel permet de retravailler les chiffres librement."],
+         "Taux de défaut par profil client, filtrable par tranche de montant.",
+         "Performance par vendeur — visible uniquement par le gérant.",
+         "Le PDF est prêt à imprimer ou à archiver, l'Excel à retravailler librement."],
         "Ouvrir réellement un PDF téléchargé pendant la démo : l'effet est fort. "
-        "Le rapport « Créances restantes » est celui qui intéresse le plus "
-        "un banquier ou un associé.")
+        "Le rapport « Performance vendeur » est celui qui intéresse le plus "
+        "un gérant à plusieurs employés.")
 
     step_slide(
-        13, "Recherche globale",
+        16, "Recherche globale",
         "Une seule barre de recherche pour tout retrouver.",
         ["Cliquer dans la barre de recherche en haut",
          "Taper un nom de client",
          "Puis un numéro de téléphone",
-         "Puis un nom de produit"],
-        ["Cherche simultanément dans les clients, les produits et les contrats.",
+         "Puis le nom ou le téléphone d'un garant"],
+        ["Cherche simultanément dans les clients, les produits, les contrats et les garants.",
          "Les résultats sont regroupés par catégorie.",
          "Un clic mène directement à la fiche concernée."],
         "Cas d'usage réel : un client appelle et donne seulement son prénom "
         "ou son numéro. En deux secondes le commerçant a toute sa situation.")
 
     step_slide(
-        14, "API et documentation",
+        17, "Utilisateurs et rôles",
+        "Le gérant garde la main sur qui peut faire quoi.",
+        ["Ouvrir « Utilisateurs » (visible ADMIN uniquement)",
+         "Créer un compte vendeur avec un mot de passe temporaire",
+         "Montrer les actions masquées pour ce rôle (suppression, prix)",
+         "Ouvrir l'historique d'une fiche pour montrer le journal d'audit"],
+        ["Un vendeur peut vendre et encaisser, pas supprimer ni changer un prix.",
+         "Chaque action sensible est journalisée : qui, quoi, quand.",
+         "Un compte désactivé perd l'accès sans effacer son historique."],
+        "Slide de confiance pour un gérant qui emploie plusieurs personnes : "
+        "il garde le contrôle des opérations sensibles et une trace de tout, "
+        "sans avoir à surveiller chaque geste en personne.",
+        accent=BLUE_LIGHT)
+
+    step_slide(
+        18, "API et documentation",
         "Pour la suite : le produit est ouvert et documenté.",
         ["Ouvrir http://localhost:8080/swagger-ui.html",
          "Parcourir les rubriques",
@@ -855,7 +1010,7 @@ def build_demo(path: Path):
          "Montrer qu'on peut la tester en ligne"],
         ["Toutes les fonctions sont accessibles par API REST documentée.",
          "Une caisse, une comptabilité ou une application mobile peuvent s'y brancher.",
-         "C'est la base sur laquelle reposera la version SaaS multi-boutiques."],
+         "C'est la même base qui porte déjà le multi-boutiques et le hors-ligne."],
         "Slide destinée à un interlocuteur technique ou à un investisseur. "
         "Devant un commerçant seul, on peut la passer rapidement. "
         "Le message : le produit n'est pas une impasse technique.",
@@ -881,11 +1036,11 @@ def build_demo(path: Path):
           "Questions fréquentes", [
               ("« Et si je me trompe de montant ? »", True),
               ("Un versement s'annule, tout est recalculé.", False),
-              ("« Puis-je envoyer par WhatsApp ? »", True),
-              ("Oui, en copiant le message. L'envoi", False),
-              ("automatique est la prochaine étape.", False),
+              ("« Et une coupure réseau en pleine vente ? »", True),
+              ("Le paiement reste en attente et se", False),
+              ("synchronise seul, sans jamais se dupliquer.", False),
           ], accent=ORANGE)
-    footer(s, "CreditFlow — Démonstration guidée", 18)
+    footer(s, "CreditFlow — Démonstration guidée", 22)
 
     # --- Clôture -------------------------------------------------------
     s = blank(prs)
