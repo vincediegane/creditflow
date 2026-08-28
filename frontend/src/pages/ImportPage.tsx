@@ -30,6 +30,7 @@ import { errorMessage } from '../api/client';
 import { importApi } from '../api/endpoints';
 import PageHeader from '../components/PageHeader';
 import type { ImportReport } from '../types';
+import { validateMaxFileSize } from '../utils/fileValidation';
 import { formatDate, formatMoney } from '../utils/format';
 
 const STEPS = ['Télécharger le modèle', 'Simuler', 'Confirmer'];
@@ -64,6 +65,13 @@ export default function ImportPage() {
   });
 
   const chooseFile = (selected: File | null) => {
+    if (selected) {
+      const validationError = validateMaxFileSize(selected);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+    }
     setFile(selected);
     setReport(null);
     setError(null);

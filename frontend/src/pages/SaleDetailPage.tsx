@@ -42,6 +42,7 @@ import ReminderDialog from '../components/ReminderDialog';
 import SignaturePad from '../components/SignaturePad';
 import StatusChip from '../components/StatusChip';
 import type { SaleAttachment } from '../types';
+import { validateMaxFileSize } from '../utils/fileValidation';
 import { PAYMENT_METHOD_LABELS, formatDate, formatMoney } from '../utils/format';
 
 const ATTACHMENT_TYPE_LABELS: Record<SaleAttachment['type'], string> = {
@@ -370,7 +371,12 @@ export default function SaleDetailPage() {
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       if (file) {
-                        uploadAttachmentMutation.mutate({ type: 'ID_DOCUMENT', file });
+                        const validationError = validateMaxFileSize(file);
+                        if (validationError) {
+                          setError(validationError);
+                        } else {
+                          uploadAttachmentMutation.mutate({ type: 'ID_DOCUMENT', file });
+                        }
                       }
                       event.target.value = '';
                     }}
@@ -399,7 +405,12 @@ export default function SaleDetailPage() {
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       if (file) {
-                        uploadAttachmentMutation.mutate({ type: 'OTHER', file });
+                        const validationError = validateMaxFileSize(file);
+                        if (validationError) {
+                          setError(validationError);
+                        } else {
+                          uploadAttachmentMutation.mutate({ type: 'OTHER', file });
+                        }
                       }
                       event.target.value = '';
                     }}
@@ -498,7 +509,14 @@ export default function SaleDetailPage() {
       <SignaturePad
         open={signatureOpen}
         onClose={() => setSignatureOpen(false)}
-        onValidate={(file) => uploadAttachmentMutation.mutate({ type: 'SIGNATURE', file })}
+        onValidate={(file) => {
+          const validationError = validateMaxFileSize(file);
+          if (validationError) {
+            setError(validationError);
+            return;
+          }
+          uploadAttachmentMutation.mutate({ type: 'SIGNATURE', file });
+        }}
       />
       <ConfirmDialog
         open={attachmentToDelete !== null}
