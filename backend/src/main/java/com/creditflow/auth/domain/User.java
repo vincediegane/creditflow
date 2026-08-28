@@ -1,6 +1,7 @@
 package com.creditflow.auth.domain;
 
 import com.creditflow.common.domain.Auditable;
+import com.creditflow.organization.domain.Organization;
 import com.creditflow.shop.domain.Shop;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -67,4 +69,8 @@ public class User extends Auditable {
             inverseJoinColumns = @JoinColumn(name = "shop_id"))
     @Builder.Default
     private Set<Shop> shops = new HashSet<>();
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "organization_id", nullable = false)
+    private Organization organization;
 }
