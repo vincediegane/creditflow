@@ -1,6 +1,7 @@
 package com.creditflow.sale.web;
 
 import com.creditflow.common.dto.PageResponse;
+import com.creditflow.common.storage.web.DocumentAccessResponses;
 import com.creditflow.payment.dto.PaymentResponse;
 import com.creditflow.payment.service.PaymentService;
 import com.creditflow.sale.domain.SaleAttachmentType;
@@ -151,5 +152,11 @@ public class SaleController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteAttachment(@PathVariable Long id, @PathVariable Long attachmentId) {
         creditSaleService.deleteAttachment(id, attachmentId);
+    }
+
+    @GetMapping("/{id}/attachments/{attachmentId}/file")
+    @Operation(summary = "Consulter une piece jointe du contrat")
+    public ResponseEntity<byte[]> attachmentFile(@PathVariable Long id, @PathVariable Long attachmentId) {
+        return DocumentAccessResponses.toResponseEntity(creditSaleService.resolveAttachment(id, attachmentId));
     }
 }

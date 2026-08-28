@@ -6,7 +6,8 @@ import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.repository.Specs;
 import com.creditflow.common.security.CurrentShopContext;
-import com.creditflow.common.storage.FileStorageService;
+import com.creditflow.common.storage.DocumentAccess;
+import com.creditflow.common.storage.DocumentStorage;
 import com.creditflow.common.util.Money;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.service.CustomerService;
@@ -66,7 +67,7 @@ public class CreditSaleService {
     private final PaymentMapper paymentMapper;
     private final AuditLogService auditLogService;
     private final PenaltySettingsService penaltySettingsService;
-    private final FileStorageService fileStorageService;
+    private final DocumentStorage documentStorage;
     private final CurrentShopContext currentShopContext;
     private final ShopRepository shopRepository;
     private final InvoiceGenerator invoiceGenerator;
@@ -263,7 +264,7 @@ public class CreditSaleService {
                     "Ce contrat comporte des paiements : annulez-le au lieu de le supprimer");
         }
         saleAttachmentRepository.findBySaleIdOrderByCreatedAtAsc(id)
-                .forEach(attachment -> fileStorageService.deleteByPublicUrl(attachment.getFileUrl()));
+                .forEach(attachment -> documentStorage.delete(attachment.getFileUrl()));
         auditLogService.record("CREDIT_SALE", id, sale.getReference(), "DELETE", null);
         saleRepository.delete(sale);
         log.info("Contrat supprime: {}", id);
@@ -275,12 +276,12 @@ public class CreditSaleService {
         if (type == SaleAttachmentType.SIGNATURE) {
             saleAttachmentRepository.findBySaleIdAndType(saleId, SaleAttachmentType.SIGNATURE)
                     .forEach(existing -> {
-                        fileStorageService.deleteByPublicUrl(existing.getFileUrl());
+                        documentStorage.delete(existing.getFileUrl());
                         saleAttachmentRepository.delete(existing);
                     });
         }
 
-        String fileUrl = fileStorageService.store(file, "sales/" + saleId);
+        String fileUrl = documentStorage.store(file, "sales/" + saleId);
         SaleAttachment attachment = saleAttachmentRepository.save(SaleAttachment.builder()
                 .sale(sale)
                 .type(type)
@@ -299,10 +300,18 @@ public class CreditSaleService {
         SaleAttachment attachment = saleAttachmentRepository.findByIdAndSaleId(attachmentId, saleId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Piece jointe", attachmentId));
 
-        fileStorageService.deleteByPublicUrl(attachment.getFileUrl());
+        documentStorage.delete(attachment.getFileUrl());
         saleAttachmentRepository.delete(attachment);
         auditLogService.record("CREDIT_SALE", saleId, sale.getReference(), "ATTACHMENT_REMOVE",
                 attachment.getType().name());
+    }
+
+    @Transactional(readOnly = true)
+    public DocumentAccess resolveAttachment(Long saleId, Long attachmentId) {
+        getEntity(saleId);
+        SaleAttachment attachment = saleAttachmentRepository.findByIdAndSaleId(attachmentId, saleId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Piece jointe", attachmentId));
+        return documentStorage.resolve(attachment.getFileUrl());
     }
 
     @Transactional(readOnly = true)

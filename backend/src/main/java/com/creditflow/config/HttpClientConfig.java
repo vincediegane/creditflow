@@ -8,11 +8,10 @@ import org.springframework.web.client.RestTemplate;
 import java.time.Duration;
 
 /**
- * Isole le {@link RestTemplate} dans une configuration a part de {@link WebConfig} :
- * comme {@link WebConfig} implemente {@code WebMvcConfigurer}, il est automatiquement
- * charge par les tranches {@code @WebMvcTest}, ce qui exigerait sinon un
- * {@code RestTemplateBuilder} (non autoconfigure dans ces tranches) pour chaque test
- * de controleur du projet.
+ * Isole le {@link RestTemplate} dans une configuration a part : une configuration
+ * {@code WebMvcConfigurer} serait automatiquement chargee par les tranches
+ * {@code @WebMvcTest}, ce qui exigerait sinon un {@code RestTemplateBuilder} (non
+ * autoconfigure dans ces tranches) pour chaque test de controleur du projet.
  */
 @Configuration
 public class HttpClientConfig {

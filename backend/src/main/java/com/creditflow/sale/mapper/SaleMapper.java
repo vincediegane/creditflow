@@ -111,7 +111,7 @@ public class SaleMapper {
                 attachment.getId(),
                 attachment.getSale().getId(),
                 attachment.getType(),
-                attachment.getFileUrl(),
+                "/api/sales/" + attachment.getSale().getId() + "/attachments/" + attachment.getId() + "/file",
                 attachment.getOriginalFilename(),
                 attachment.getContentType(),
                 attachment.getCreatedAt(),

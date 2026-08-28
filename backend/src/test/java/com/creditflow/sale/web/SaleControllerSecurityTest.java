@@ -1,6 +1,7 @@
 package com.creditflow.sale.web;
 
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.common.storage.DocumentAccess;
 import com.creditflow.config.AbstractWebMvcSecurityTest;
 import com.creditflow.payment.service.PaymentService;
 import com.creditflow.sale.domain.SaleAttachmentType;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -33,6 +35,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(SaleController.class)
@@ -163,5 +166,44 @@ class SaleControllerSecurityTest extends AbstractWebMvcSecurityTest {
         when(creditSaleService.deliveryNote(2L)).thenThrow(new ResourceNotFoundException("Ressource introuvable"));
 
         mockMvc.perform(get("/api/sales/2/delivery-note")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("refuse une piece jointe sans authentification")
+    void unauthenticatedCannotGetAttachmentFile() throws Exception {
+        mockMvc.perform(get("/api/sales/1/attachments/2/file")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "SELLER")
+    @DisplayName("sert la piece jointe en octets quand la resolution est locale")
+    void sellerGetsInlineAttachmentFile() throws Exception {
+        when(creditSaleService.resolveAttachment(1L, 2L))
+                .thenReturn(new DocumentAccess.Inline(new byte[]{1, 2, 3}, "image/png"));
+
+        mockMvc.perform(get("/api/sales/1/attachments/2/file"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG));
+    }
+
+    @Test
+    @WithMockUser(roles = "SELLER")
+    @DisplayName("redirige vers l'URL signee quand la resolution est distante")
+    void sellerGetsRedirectAttachmentFile() throws Exception {
+        when(creditSaleService.resolveAttachment(1L, 2L))
+                .thenReturn(new DocumentAccess.Redirect("https://s3.example.com/bucket/sales/1/2.png?sig=xyz"));
+
+        mockMvc.perform(get("/api/sales/1/attachments/2/file"))
+                .andExpect(status().isFound())
+                .andExpect(header().string(HttpHeaders.LOCATION, "https://s3.example.com/bucket/sales/1/2.png?sig=xyz"));
+    }
+
+    @Test
+    @WithMockUser(roles = "SELLER")
+    @DisplayName("refuse une piece jointe d'un contrat inaccessible")
+    void sellerCannotGetAttachmentFileOfInaccessibleSale() throws Exception {
+        when(creditSaleService.resolveAttachment(2L, 3L)).thenThrow(new ResourceNotFoundException("Ressource introuvable"));
+
+        mockMvc.perform(get("/api/sales/2/attachments/3/file")).andExpect(status().isNotFound());
     }
 }

@@ -25,6 +25,8 @@ public interface CustomerMapper {
     void updateEntity(CustomerRequest request, @MappingTarget Customer customer);
 
     @Mapping(target = "fullName", expression = "java(customer.getFullName())")
+    @Mapping(target = "photoUrl", expression = "java(org.springframework.util.StringUtils.hasText(customer.getPhotoUrl()) "
+            + "? \"/api/customers/\" + customer.getId() + \"/photo\" : null)")
     @Mapping(target = "salesCount", source = "salesCount")
     @Mapping(target = "totalRemaining", source = "totalRemaining")
     @Mapping(target = "late", source = "late")
