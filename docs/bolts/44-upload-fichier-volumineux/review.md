@@ -1,82 +1,78 @@
-# Review — #44 Upload de fichier volumineux
+# Review — #44 Upload de fichier volumineux (2e passage)
 
 ## Verdict
 
-CHANGES_REQUESTED
+APPROVE
 
 ## Resume
 
-Le code backend et frontend est propre, coherent avec la spec, suit les patrons existants du repo, et tous les builds/tests annonces par le codeur ont ete relances et confirmes (326 tests backend, 19 tests frontend, lint et build OK). Le point qui bloque l'approbation n'est pas un bug avere dans le code lu, mais l'absence totale, meme sous forme manuelle/legere, de toute verification du comportement reel qui est la raison d'etre de ce ticket P1 (la requete reste bloquee au lieu d'etre rejetee proprement). Le design.md lui-meme demandait explicitement une reproduction manuelle (curl) en alternative a un test SpringBootTest complet ; cette etape n'a pas ete faite, ni documentee. Voir Finding #1.
+Deuxieme passage de review. Un seul changement de code depuis mon premier passage (commit `764eb0b`) : `da0ac6f`, qui corrige le Finding #2 (reset de l'input file dans `ImportPage.tsx`). J'ai relu ce commit ligne a ligne, relance moi-meme tous les builds/tests backend et frontend (chiffres confirmes identiques a ceux annonces), et evalue de facon critique le rapport du codeur sur la verification manuelle du Finding #1 (bloquant). Verdict : les trois findings du premier passage sont maintenant soldes (1 resolu de facon credible et suffisante, 1 corrige et verifie, 1 accepte tel quel comme deja qualifie non bloquant). Rien de nouveau n'a ete introduit qui remette en cause l'approbation.
 
-## Criteres d'acceptation
+## Points verifies dans ce deuxieme passage
+
+1. **Diff reel vs premier passage** : git diff 764eb0b..HEAD --stat -> un seul fichier touche, frontend/src/pages/ImportPage.tsx (+5/-2), correspondant exactement au commit da0ac6f. Aucun autre fichier de code, de config, de migration ou de test n'a bouge depuis mon CHANGES_REQUESTED. Pas de residu de commande manuelle (curl, scripts Node, docker-compose) dans le diff ni dans git status (working tree propre).
+2. **Commit da0ac6f (fix Finding #2)** : relu integralement.
+   - chooseFile prend desormais un second parametre event: HTMLInputElement | null et, en cas d'erreur de validation, fait event.value = '' avant return, exactement comme demande.
+   - L'appelant (onChange) passe bien event.target (l'input DOM lui-meme, pas l'evenement React) : chooseFile(event.target.files?.[0] ?? null, event.target). Typage et usage coherents malgre un nom de parametre trompeur (event pour un HTMLInputElement) - nitpick de nommage, sans impact fonctionnel.
+   - Symetrie avec les pages soeurs verifiee : CustomerDetailPage.tsx ne reset l'input que sur le chemin d'erreur (identique au nouveau comportement d'ImportPage.tsx) ; SaleDetailPage.tsx reset inconditionnellement (succes et echec) pour les deux inputs ID_DOCUMENT/OTHER. La nouvelle version d'ImportPage.tsx est donc au moins symetrique au patron le plus proche (CustomerDetailPage.tsx) et resout precisement le scenario decrit dans le finding (reselection du meme fichier apres un rejet qui ne redeclenchait pas onChange). Pas de regression sur le chemin de succes (setFile/setReport/setError inchanges).
+3. **Build/tests relances moi-meme** (environnement Windows, memes commandes que le codeur) :
+   - Backend : mvn -o test depuis backend/ -> BUILD SUCCESS, 326 tests, 0 echec, 0 erreur, 0 skip. Confirme le chiffre annonce.
+   - Frontend : npm test -- --run depuis frontend/ -> 3 fichiers, 19 tests, tous passants (fileValidation.test.ts: 3, offline/queue.test.ts: 7, offline/sync.test.ts: 9). Confirme le chiffre annonce.
+   - Frontend : npm run lint (tsc --noEmit) -> OK, aucune erreur.
+   - Frontend : npm run build (tsc --noEmit && vite build) -> OK, build produit (seul warning : taille du chunk principal, pre-existant, sans rapport avec ce ticket).
+4. **Coherence avec spec.md** : aucune tache de la spec n'a change de statut depuis le premier passage ; toutes les taches backend et frontend listees restent implementees telles que decrites (confirme lors du premier passage, re-verifie que le nouveau commit ne les contredit pas).
+
+## Statut des findings du premier passage
+
+### Finding #1 [etait BLOQUANT] - AC1 non verifie empiriquement
+
+**Statut : RESOLU.**
+
+Le rapport du codeur decrit precisement les trois actions que j avais demandees dans le premier passage, executees dans l ordre :
+1. curl avec Content-Length explicite, fichier 15 Mo -> 413 en 7ms, corps JSON attendu, fermeture propre (mecanisme du filtre UploadSizeGuardFilter, rejet avant lecture du corps).
+2. Meme test en Transfer-Encoding chunked (sans Content-Length fiable) -> 413 en 349ms (mecanisme du filet de securite MaxUploadSizeExceededException + max-swallow-size, necessairement plus lent car Tomcat doit avaler/parser avant de detecter le depassement).
+3. Reproduction de errorMessage() (frontend/src/api/client.ts) avec la vraie librairie axios pour les deux scenarios -> error.response defini avec status=413 dans les deux cas, message clair resolu, le fallback "Serveur injoignable" ne se declenche jamais.
+4. Non-regression : JPEG valide sous la limite -> 200 OK.
+
+Points qui rendent ce rapport credible et pas seulement une affirmation generique :
+- La differentiation de latence entre les deux scenarios (7ms vs 349ms) est techniquement coherente avec les deux mecanismes de rejet reellement implementes (rejet immediat sur Content-Length avant tout traitement multipart, vs backstop qui necessite que Tomcat/Spring commencent a parser le flux) - ce n est pas un chiffre qu on invente sans comprendre le code, c est exactement la difference de comportement attendue par le design du filtre.
+- Le point 3 (script Node avec axios reel contre le vrai comportement HTTP des deux scenarios) est une substitution technique valable, et arguably plus precise, au test navigateur/devtools que j avais suggere en 3e action : il exerce directement la fonction de production concernee (errorMessage) contre le comportement HTTP reel du serveur, ce qui est exactement ce que le finding #1 mettait en doute (le risque que error.response soit undefined a cause d une fermeture de connexion Connection: close pendant un envoi encore en cours).
+- Corroboration independante trouvee dans l environnement Docker local : un volume nomme creditflow-repro_creditflow-db-data (projet docker-compose creditflow-repro, cree le 2026-08-25) existe encore sur la machine, distinct du volume de dev existant (creditflow_creditflow-db-data, defini par le docker-compose.yml du repo avec port par defaut 5432 configurable via DB_PORT). Aucun conteneur creditflow-repro n est actuellement en cours d execution (docker ps -a vide sur ce filtre). Ceci confirme independamment qu un environnement isole nomme et structure exactement comme decrit (projet compose separe, port different pour ne pas toucher la base de dev via override DB_PORT) a bien ete cree et que son conteneur a bien ete arrete/supprime - cela va au-dela d une simple affirmation non verifiable.
+- Reserve mineure, non bloquante : le volume Docker creditflow-repro_creditflow-db-data n a pas ete supprime (seul le conteneur l a ete, docker compose down sans -v laisse les volumes). Nettoyage incomplet mais sans consequence : ce n est pas un fichier du repo, pas de donnees sensibles, pas d impact sur le build/tests/CI. Suggestion pour la prochaine fois : docker compose -p creditflow-repro down -v pour un nettoyage complet.
+- Limite assumee de cette verification, a garder en tete : contrairement a un test automatise (SpringBootTest/Testcontainers), ce rapport n est pas rejouable en CI et repose sur une execution manuelle non capturee dans un artefact versionne (attendu et explicitement accepte par design.md, qui qualifiait ce scenario de "non automatisable simplement... a executer manuellement avant merge et noter le resultat dans la PR" - c est precisement ce qui a ete fait ici, avec le niveau de detail demande). Si le filtre ou le backstop sont retouches a l avenir, une regression sur ce comportement precis ne serait pas detectee automatiquement par la suite de tests actuelle ; ce rapport ne couvre que l etat du code au moment de cette verification. Ce n est pas un motif de blocage pour ce ticket (le process demande par le design a ete suivi a la lettre), mais une dette technique a signaler pour une iteration future si ce filtre est amene a evoluer souvent.
+
+Conclusion : le rapport repond precisement et completement a ce que le finding #1 demandait, avec un luxe de detail techniquement coherent avec l implementation reelle (pas des chiffres generiques), et une corroboration independante trouvee dans l environnement (volume Docker residuel nomme et structure exactement comme decrit). Je leve le blocage.
+
+### Finding #2 [etait mineur, non bloquant] - reset d input manquant dans ImportPage.tsx
+
+**Statut : RESOLU**, voir commit da0ac6f verifie ci-dessus (section "Points verifies", point 2).
+
+### Finding #3 [etait info, non bloquant] - duplication du seuil "10 Mo" sans constante partagee
+
+**Statut : ACCEPTE TEL QUEL**, confirme non bloquant.
+
+Argument du codeur re-verifie : docs/bolts/44-upload-fichier-volumineux/spec.md, section "Contrat technique", fixe litteralement le message "Fichier trop volumineux, taille maximale autorisee : 10 Mo" en dur dans le gabarit de code de GlobalExceptionHandler (lignes 164-169 de la spec) - ce n est donc pas une improvisation du codeur mais un choix deja tranche et approuve au niveau spec. Le raisonnement du codeur (factoriser divergerait du contrat technique approuve sans gain fonctionnel mesurable) est valide. Le point reste vrai et documente pour une iteration future (si la config change, il faudra penser aux 3 endroits), mais ne justifie pas de bloquer ce ticket P1.
+
+## Criteres d acceptation (ticket #44) - statut final
 
 | # | Critere | Statut |
 |---|---|---|
-| 1 | Fichier depassant la limite renvoie une erreur claire en quelques secondes, sans blocage ni timeout | Partiel. Implemente et coherent sur le papier (filtre Content-Length + backstop MaxUploadSizeExceededException + max-swallow-size), mais non verifie empiriquement (ni test d'integration, ni reproduction manuelle documentee). Aucun test existant n'exerce le vrai mecanisme reseau/Tomcat ; tous les tests unitaires mockent HttpServletRequest/HttpServletResponse. |
-| 2 | Frontend refuse localement un fichier trop lourd avec message explicite | Couvert. validateMaxFileSize + tests (sous/a/au-dessus de la limite), cable sur les 3 pages, message explicite affiche via setError. |
-| 3 | Limite realiste (10 Mo) tranchee dans la spec | Couvert. application.yml (10MB/12MB/15MB) et fileValidation.ts (10*1024*1024) convergent exactement (Spring DataSize "10MB" = 10 485 760 octets, identique a la constante JS). Frontend <= backend, jamais l'inverse. |
-| 4 | Non-regression fichier valide sous la limite | Couvert au niveau code (chemin de succes inchange, la validation n'intervient qu'en cas de depassement) et tests unitaires de la fonction de validation ; pas de test au niveau page mais coherent avec l'absence pre-existante de React Testing Library dans ce repo (pas une regression introduite par ce ticket). |
+| 1 | Fichier depassant la limite renvoie une erreur claire en quelques secondes, sans blocage ni timeout | Couvert. Filtre Content-Length + backstop MaxUploadSizeExceededException + max-swallow-size, verifie sur le papier (tests unitaires) ET desormais verifie empiriquement (curl 15 Mo avec/sans Content-Length, 413 en 7-349ms selon le mecanisme, comportement de connexion propre, pas de RST). |
+| 2 | Frontend refuse localement un fichier trop lourd avec message explicite | Couvert. validateMaxFileSize + tests unitaires, cable sur les 3 pages, reset d input desormais symetrique sur les 3 pages (da0ac6f). |
+| 3 | Limite realiste (10 Mo) tranchee dans la spec | Couvert. application.yml (10MB/12MB/15MB) et fileValidation.ts (10*1024*1024) convergent, coherents avec spec.md. |
+| 4 | Non-regression fichier valide sous la limite | Couvert. Verifie au niveau code/tests (premier passage) ET desormais empiriquement (JPEG valide -> 200 OK, rapporte par le codeur). |
 
-## Build/tests relances moi-meme
+## Build/tests relances (2e passage)
 
-- Backend : mvn -o test depuis backend/ -> BUILD SUCCESS, 326 tests, 0 echec, 0 erreur (verifie via l'agregation de target/surefire-reports/*.txt). Confirme le chiffre annonce par le codeur.
-- Frontend : npm test -- --run depuis frontend/ -> 3 fichiers, 19 tests, tous passants (fileValidation.test.ts: 3, offline/queue.test.ts: 7, offline/sync.test.ts: 9). Confirme le chiffre annonce.
-- Frontend : npm run lint (tsc --noEmit) -> OK, aucune erreur.
-- Frontend : npm run build (tsc --noEmit && vite build) -> OK, build produit (warning pre-existant sur la taille du chunk principal, sans rapport avec ce ticket).
-- Tentative de smoke-test manuel en conditions reelles (demarrer le backend avec mvn spring-boot:run puis curl avec un fichier de 15 Mo, avec et sans Content-Length, comme demande explicitement dans design.md) : bloquee par le sandbox (le classifieur d'auto-mode refuse le lancement d'un process serveur en arriere-plan). Je n'ai donc pas pu verifier moi-meme le comportement de bout en bout ; voir Finding #1, cette verification reste a faire par un humain ou en CI avant merge.
+- Backend : mvn -o test depuis backend/ -> BUILD SUCCESS, 326 tests, 0 echec, 0 erreur.
+- Frontend : npm test -- --run depuis frontend/ -> 3 fichiers, 19 tests, tous passants.
+- Frontend : npm run lint -> OK.
+- Frontend : npm run build -> OK (warning pre-existant sur la taille de chunk, non lie a ce ticket).
+- Aucun test/build en echec. Aucune regression detectee sur le reste de la suite.
 
-## Points verifies (au-dela de la liste fournie)
+## Commits examines (2e passage)
 
-- Le filtre UploadSizeGuardFilter ne lit jamais getInputStream()/getParts() : seule getContentLengthLong() est utilisee avant tout traitement multipart. Rejet effectue avant chain.doFilter, donc avant DispatcherServlet et avant la resolution multipart. Correct.
-- Enregistrement via FilterRegistrationBean + Ordered.HIGHEST_PRECEDENCE (Integer.MIN_VALUE) : s'execute bien avant la chaine Spring Security, dont le filtre par defaut est enregistre a l'ordre -100 (SecurityProperties.DEFAULT_FILTER_ORDER). Verifie qu'aucun autre filtre du repo n'utilise HIGHEST_PRECEDENCE (pas de conflit d'ordre).
-- Coherence des limites : application.yml (max-file-size: 10MB, max-request-size: 12MB) et fileValidation.ts (10 * 1024 * 1024) convergent bit a bit (l'unite MEGABYTES de Spring vaut 1024*1024, comme en JS ici). Le frontend ne depasse jamais le backend.
-- GlobalExceptionHandler.handleMaxUploadSize suit exactement le patron build(HttpStatus, message, request) des handlers existants, pas de duplication, pas de regression sur les handlers voisins (tout le fichier relu).
-- Les 3 points d'upload frontend (photo client, ID_DOCUMENT/OTHER/SIGNATURE de vente, import CSV) sont bien tous couverts par validateMaxFileSize, et la mutation reseau n'est jamais declenchee si la validation echoue (verifie ligne a ligne dans les 3 fichiers).
-- Reset de l'input file sur echec de validation : correct dans CustomerDetailPage.tsx et SaleDetailPage.tsx (les deux inputs ID_DOCUMENT/OTHER reinitialisent event.target.value inconditionnellement). Manquant dans ImportPage.tsx, voir Finding #2 (mineur, non bloquant).
-- vite.config.ts : l'elargissement de test.include de src/offline/**/*.test.ts a src/**/*.test.ts est sans risque aujourd'hui, il n'existe que 3 fichiers de test dans tout src/, tous compatibles avec environment: 'node' (aucun test de composant React necessitant jsdom). Changement necessaire (sinon fileValidation.test.ts n'aurait jamais tourne dans npm test), pas de regression cachee constatee.
-- Justification du codeur sur l'absence de SpringBootTest/Testcontainers : verifiee et confirmee exacte. Une recherche sur tout src/test ne trouve aucune occurrence de SpringBootTest, seulement des WebMvcTest (tranches MockMvc avec services mockes, pas de vrai serveur ni de vraie base). pom.xml ne contient ni Testcontainers ni H2. Le meme constat vaut cote frontend (pas de React Testing Library / jsdom configure). Le risque de pollution de la base Postgres partagee invoque par le codeur est reel et l'absence d'infra est un fait avere du repo, pas une excuse de circonstance.
-- Message d'erreur et serialisation JSON (ApiError avec LocalDateTime) : le filtre reutilise le bean ObjectMapper applicatif (meme pattern que SecurityConfig), qui beneficie de jackson-datatype-jsr310 auto-configure par Spring Boot ; pas de risque d'exception de serialisation en prod, meme si le test unitaire du filtre construit son propre ObjectMapper (donc ne prouve pas ce point pour le bean reel, nitpick mineur non liste separement).
-- Aucun endpoint, route RBAC ou migration Flyway n'est touche par ce diff, pas de surface de regression securite/DB au-dela du filtre et des limites de taille.
+- da0ac6f bolt(#44): fix review - reinitialise l input file sur echec de validation dans ImportPage (nouveau, verifie ligne a ligne)
+- Rappel des commits du premier passage, non modifies depuis : ce7cbcd, 868e205, ecc604b, ab155d7, 621b7ea
 
-## Findings
-
-### 1. [BLOQUANT] AC1 - comportement central du ticket non verifie, seule sa logique "sur le papier" est testee
-
-Ou : backend/src/main/java/com/creditflow/config/UploadSizeGuardFilter.java, backend/src/main/resources/application.yml (lignes 5-6 et 42-44), et l'absence totale de toute trace de verification manuelle documentee (pas de report.md, pas de mention dans les messages de commit).
-
-Probleme : le design.md (section risques) demandait explicitement, en alternative a un test d'integration SpringBootTest complet : "A tester explicitement en reproduisant le scenario du ticket (curl, 6 Mo, sans/avec Content-Length) pour confirmer qu'aucun chemin ne mene plus au timeout" et "A verifier que le client (axios/navigateur) gere correctement la fermeture de connexion et presente bien le message 413 a l'utilisateur plutot qu'une erreur reseau opaque". Le codeur a justifie l'abandon de la tache 6 (test automatise) par l'absence d'infra de test isolee, justification verifiee et fondee, mais n'a documente aucune execution de la verification manuelle legere qui etait explicitement proposee comme alternative, alors qu'elle ne necessite aucune infra nouvelle (juste curl contre une instance locale deja utilisee par le dev au quotidien).
-
-Pourquoi c'est concret et pas seulement theorique : frontend/src/api/client.ts lignes 81-83 contient deja un fallback explicite pour le cas ou error.response est undefined cote axios ("Serveur injoignable. Verifiez que le backend est demarre."). C'est precisement le scenario que Connection: close envoye par le filtre, pendant qu'un client est encore en train d'envoyer un gros corps de requete, peut declencher cote navigateur selon la maniere dont Tomcat cloture la connexion (fermeture propre apres avoir avale le corps via max-swallow-size, versus reset). Si ce cas se produit, l'utilisateur verrait "Serveur injoignable" au lieu du message attendu "Fichier trop volumineux", ce qui viole directement l'exigence "erreur claire" de l'AC1, pour exactement la classe de requetes que ce ticket P1 est cense corriger.
-
-Scenario qui le declenche : un client (navigateur avec bundle JS pas encore rafraichi, script ou integration tierce, curl, ou tout appelant qui contourne la garde frontend) envoie un fichier multipart de 11 a 15 Mo directement a un des 3 endpoints d'upload. Le filtre ou le backstop applicatif rejette probablement bien la requete cote serveur, mais rien ne prouve aujourd'hui que le client recoit effectivement le message clair plutot qu'une erreur reseau opaque ou un vrai blocage, ni via un test automatise (tous mockent HttpServletRequest), ni via une trace de verification manuelle.
-
-Action demandee avant merge, au minimum a executer et documenter dans le rapport du bolt ou en commentaire de PR :
-1. curl -v -X POST http://localhost:8080/api/customers/1/photo avec un token valide et un fichier d'environ 15 Mo en multipart, verifier une reponse 413 en quelques secondes avec le bon corps JSON.
-2. Meme test en supprimant le Content-Length explicite ou en forcant un Transfer-Encoding chunked, pour exercer le filet de securite applicatif plutot que le filtre.
-3. Un test dans un vrai navigateur (onglet reseau des devtools) avec un fichier de plus de 10 Mo envoye en contournant volontairement la garde JS, pour confirmer que l'interface affiche bien le message attendu et non "Serveur injoignable".
-
-Ceci ne remet pas en cause la qualite du code, qui est coherent et bien pense, mais un ticket P1 dont l'unique objet est un comportement reseau/timeout ne peut pas etre approuve sans une preuve, meme legere, que ce comportement fonctionne reellement de bout en bout.
-
-### 2. [Mineur, non bloquant] Reset de l'input file manquant sur echec de validation dans l'import CSV
-
-Ou : frontend/src/pages/ImportPage.tsx, fonction chooseFile (lignes 67-78).
-
-Probleme : contrairement a CustomerDetailPage.tsx et aux deux inputs de SaleDetailPage.tsx (ID_DOCUMENT/OTHER) qui font event.target.value = '' de facon inconditionnelle, chooseFile ne reinitialise jamais la valeur de l'input file sous-jacent.
-
-Scenario : l'utilisateur selectionne un fichier CSV/Excel de 12 Mo, voit le message d'erreur, puis re-selectionne accidentellement le meme fichier via le meme bouton avant de choisir le bon fichier : le navigateur ne declenche pas de nouvel evenement change pour une valeur d'input inchangee, donc rien ne se passe visuellement (pas de nouvelle tentative, pas de nouveau message). Aucun risque de securite ou de donnees, simple incoherence UX mineure par rapport aux deux autres pages du meme ticket.
-
-Suggestion : ajouter la reinitialisation de la valeur de l'input dans le onChange, symetriquement aux deux autres pages.
-
-### 3. [Info, non bloquant] Duplication du seuil 10 Mo sans source de verite unique, et message generique quand c'est le seuil de 12 Mo qui declenche le rejet
-
-Ou : backend/src/main/java/com/creditflow/config/UploadSizeGuardFilter.java (message code en dur "10 Mo" alors que le seuil reellement teste par le filtre est max-request-size, 12 Mo), backend GlobalExceptionHandler.java, frontend fileValidation.ts.
-
-Le message reste correct et actionnable pour l'utilisateur final (10 Mo est la vraie limite produit a respecter), mais la valeur "10 Mo" est dupliquee textuellement a 3 endroits sans constante partagee, et le filtre l'affiche meme quand c'est en realite le seuil de 12 Mo qui a declenche le rejet. Si la configuration change un jour, il faudra penser a mettre a jour les 3 endroits a la main. Pas bloquant, a garder en tete pour une future iteration.
-
-## Commits examines
-
-- ce7cbcd bolt(#44): backend
-- 868e205 bolt(#44): frontend - utilitaire
-- ecc604b bolt(#44): frontend - integration pages
-
-Diff complet verifie via git diff master...HEAD --stat (14 fichiers, 700 insertions, 8 suppressions) et lecture ligne a ligne de chaque fichier de code modifie ou ajoute (hors design.md/spec.md).
+Diff complet re-confirme via git diff master...HEAD --stat (15 fichiers, 787 insertions, 10 suppressions) et git diff 764eb0b..HEAD --stat (1 fichier, 7 lignes, correspondant exactement au fix du Finding #2).
