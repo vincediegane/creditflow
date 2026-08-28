@@ -64,11 +64,14 @@ export default function ImportPage() {
     },
   });
 
-  const chooseFile = (selected: File | null) => {
+  const chooseFile = (selected: File | null, event: HTMLInputElement | null) => {
     if (selected) {
       const validationError = validateMaxFileSize(selected);
       if (validationError) {
         setError(validationError);
+        if (event) {
+          event.value = '';
+        }
         return;
       }
     }
@@ -131,7 +134,7 @@ export default function ImportPage() {
                 type="file"
                 accept=".csv,.xlsx,.txt"
                 hidden
-                onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}
+                onChange={(event) => chooseFile(event.target.files?.[0] ?? null, event.target)}
               />
               <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
                 <Button
