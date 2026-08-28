@@ -12,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.List;
 
@@ -55,6 +56,11 @@ public class GlobalExceptionHandler {
         log.warn("Violation d'integrite: {}", ex.getMostSpecificCause().getMessage());
         return build(HttpStatus.CONFLICT,
                 "Cette valeur existe deja ou viole une contrainte de la base de donnees.", request);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUploadSize(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, "Fichier trop volumineux, taille maximale autorisee : 10 Mo", request);
     }
 
     @ExceptionHandler(AuthenticationException.class)
