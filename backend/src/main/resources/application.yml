@@ -2,6 +2,8 @@ server:
   port: ${SERVER_PORT:8080}
   error:
     include-message: always
+  tomcat:
+    max-swallow-size: 15MB
 
 spring:
   application:
@@ -38,8 +40,8 @@ spring:
       write-dates-as-timestamps: false
   servlet:
     multipart:
-      max-file-size: 5MB
-      max-request-size: 5MB
+      max-file-size: 10MB
+      max-request-size: 12MB
 
 springdoc:
   swagger-ui:

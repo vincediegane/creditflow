@@ -70,6 +70,6 @@ export default defineConfig({
     environment: 'node',
     globals: false,
     setupFiles: ['./vitest.setup.ts'],
-    include: ['src/offline/**/*.test.ts'],
+    include: ['src/**/*.test.ts'],
   },
 });

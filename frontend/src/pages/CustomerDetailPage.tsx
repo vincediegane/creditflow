@@ -30,6 +30,7 @@ import PageHeader from '../components/PageHeader';
 import ReminderDialog from '../components/ReminderDialog';
 import StatusChip from '../components/StatusChip';
 import { PAYMENT_METHOD_LABELS, formatDate, formatMoney, initials } from '../utils/format';
+import { validateMaxFileSize } from '../utils/fileValidation';
 
 export default function CustomerDetailPage() {
   const { id } = useParams();
@@ -110,9 +111,16 @@ export default function CustomerDetailPage() {
                   hidden
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    if (file) {
-                      photoMutation.mutate(file);
+                    if (!file) {
+                      return;
                     }
+                    const validationError = validateMaxFileSize(file);
+                    if (validationError) {
+                      setError(validationError);
+                      event.target.value = '';
+                      return;
+                    }
+                    photoMutation.mutate(file);
                   }}
                 />
                 <Button

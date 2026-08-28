@@ -30,6 +30,7 @@ import { errorMessage } from '../api/client';
 import { importApi } from '../api/endpoints';
 import PageHeader from '../components/PageHeader';
 import type { ImportReport } from '../types';
+import { validateMaxFileSize } from '../utils/fileValidation';
 import { formatDate, formatMoney } from '../utils/format';
 
 const STEPS = ['Télécharger le modèle', 'Simuler', 'Confirmer'];
@@ -63,7 +64,17 @@ export default function ImportPage() {
     },
   });
 
-  const chooseFile = (selected: File | null) => {
+  const chooseFile = (selected: File | null, event: HTMLInputElement | null) => {
+    if (selected) {
+      const validationError = validateMaxFileSize(selected);
+      if (validationError) {
+        setError(validationError);
+        if (event) {
+          event.value = '';
+        }
+        return;
+      }
+    }
     setFile(selected);
     setReport(null);
     setError(null);
@@ -123,7 +134,7 @@ export default function ImportPage() {
                 type="file"
                 accept=".csv,.xlsx,.txt"
                 hidden
-                onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}
+                onChange={(event) => chooseFile(event.target.files?.[0] ?? null, event.target)}
               />
               <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
                 <Button
