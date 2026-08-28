@@ -3,6 +3,8 @@ package com.creditflow.shop.service;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.config.AppProperties;
+import com.creditflow.organization.domain.Organization;
+import com.creditflow.organization.repository.OrganizationRepository;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.dto.ShopRequest;
 import com.creditflow.shop.dto.ShopResponse;
@@ -23,6 +25,7 @@ public class ShopService {
     private final ShopRepository shopRepository;
     private final ShopMapper shopMapper;
     private final AppProperties properties;
+    private final OrganizationRepository organizationRepository;
 
     @Transactional(readOnly = true)
     public List<ShopResponse> list() {
@@ -49,6 +52,7 @@ public class ShopService {
         assertNameAvailable(request.name(), null);
 
         Shop shop = shopMapper.toEntity(request);
+        shop.setOrganization(resolveDefaultOrganization());
         Shop saved = shopRepository.save(shop);
         log.info("Boutique creee: {} ({})", saved.getName(), saved.getId());
         return shopMapper.toResponse(saved);
@@ -68,6 +72,12 @@ public class ShopService {
     public void delete(Long id) {
         shopRepository.delete(getEntity(id));
         log.info("Boutique supprimee: {}", id);
+    }
+
+    private Organization resolveDefaultOrganization() {
+        return organizationRepository.findFirstByOrderByIdAsc()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Aucune organisation par defaut trouvee : la migration V13 doit etre appliquee."));
     }
 
     private void assertNameAvailable(String name, Long id) {

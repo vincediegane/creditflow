@@ -4,6 +4,8 @@ import com.creditflow.auth.domain.Role;
 import com.creditflow.auth.domain.User;
 import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.config.AppProperties;
+import com.creditflow.organization.domain.Organization;
+import com.creditflow.organization.repository.OrganizationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
@@ -23,6 +25,7 @@ public class AdminInitializer {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AppProperties properties;
+    private final OrganizationRepository organizationRepository;
 
     @Bean
     @Order(1)
@@ -33,6 +36,9 @@ public class AdminInitializer {
                 log.info("Administrateur '{}' deja present.", admin.getUsername());
                 return;
             }
+            Organization organization = organizationRepository.findFirstByOrderByIdAsc()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Aucune organisation par defaut trouvee : la migration V13 doit etre appliquee."));
             User user = User.builder()
                     .username(admin.getUsername())
                     .password(passwordEncoder.encode(admin.getPassword()))
@@ -40,6 +46,7 @@ public class AdminInitializer {
                     .role(Role.ADMIN)
                     .enabled(true)
                     .mustChangePassword(admin.isForcePasswordChange())
+                    .organization(organization)
                     .build();
             userRepository.save(user);
 
