@@ -3,6 +3,8 @@ package com.creditflow.shop.service;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.config.AppProperties;
+import com.creditflow.organization.domain.Organization;
+import com.creditflow.organization.repository.OrganizationRepository;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.dto.ShopRequest;
 import com.creditflow.shop.mapper.ShopMapper;
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -39,12 +42,17 @@ class ShopServiceTest {
     @Mock
     private AppProperties properties;
 
+    @Mock
+    private OrganizationRepository organizationRepository;
+
     @InjectMocks
     private ShopService shopService;
 
     @BeforeEach
     void setUp() {
         when(properties.getPlan()).thenReturn(new AppProperties.Plan());
+        when(organizationRepository.findFirstByOrderByIdAsc())
+                .thenReturn(Optional.of(Organization.builder().id(1L).name("Organisation par defaut").build()));
     }
 
     private ShopRequest request() {
@@ -75,6 +83,22 @@ class ShopServiceTest {
         shopService.create(request());
 
         verify(shopRepository).save(entity);
+    }
+
+    @Test
+    @DisplayName("rattache l'organisation par defaut a la boutique creee")
+    void createAssignsDefaultOrganization() {
+        Shop entity = Shop.builder().name("Boutique Centre-ville").address("Dakar")
+                .phone("770000002").active(true).build();
+        when(shopRepository.existsByNameIgnoreCase("Boutique Centre-ville")).thenReturn(false);
+        when(shopMapper.toEntity(any(ShopRequest.class))).thenReturn(entity);
+        when(shopRepository.save(any(Shop.class))).thenAnswer(i -> i.getArgument(0));
+
+        shopService.create(request());
+
+        var captor = ArgumentCaptor.forClass(Shop.class);
+        verify(shopRepository).save(captor.capture());
+        assertThat(captor.getValue().getOrganization().getId()).isEqualTo(1L);
     }
 
     @Test

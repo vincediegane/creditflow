@@ -7,6 +7,8 @@ import com.creditflow.auth.dto.UserResponse;
 import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.organization.domain.Organization;
+import com.creditflow.organization.repository.OrganizationRepository;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.dto.ShopSummary;
 import com.creditflow.shop.repository.ShopRepository;
@@ -29,6 +31,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
     private final PasswordEncoder passwordEncoder;
+    private final OrganizationRepository organizationRepository;
 
     @Transactional(readOnly = true)
     public List<UserResponse> list() {
@@ -54,6 +57,7 @@ public class UserService {
                 .enabled(true)
                 .mustChangePassword(true)
                 .shops(shops)
+                .organization(resolveDefaultOrganization())
                 .build();
 
         User saved = userRepository.save(user);
@@ -85,6 +89,12 @@ public class UserService {
         User saved = userRepository.save(user);
         log.info("Boutiques mises a jour pour {} par {}", saved.getUsername(), currentUsername);
         return toResponse(saved);
+    }
+
+    private Organization resolveDefaultOrganization() {
+        return organizationRepository.findFirstByOrderByIdAsc()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Aucune organisation par defaut trouvee : la migration V13 doit etre appliquee."));
     }
 
     private Set<Shop> resolveShops(Role role, List<Long> shopIds) {

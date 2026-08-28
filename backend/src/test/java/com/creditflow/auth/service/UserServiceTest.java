@@ -6,6 +6,8 @@ import com.creditflow.auth.dto.UserRequest;
 import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.organization.domain.Organization;
+import com.creditflow.organization.repository.OrganizationRepository;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.repository.ShopRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +42,9 @@ class UserServiceTest {
     @Mock
     private ShopRepository shopRepository;
 
+    @Mock
+    private OrganizationRepository organizationRepository;
+
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     private UserService userService;
@@ -50,9 +55,11 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, shopRepository, passwordEncoder);
+        userService = new UserService(userRepository, shopRepository, passwordEncoder, organizationRepository);
         Shop shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
         when(shopRepository.findById(1L)).thenReturn(Optional.of(shop));
+        when(organizationRepository.findFirstByOrderByIdAsc())
+                .thenReturn(Optional.of(Organization.builder().id(1L).name("Organisation par defaut").build()));
     }
 
     @Test
@@ -75,6 +82,19 @@ class UserServiceTest {
         verify(userRepository).save(captor.capture());
         assertThat(captor.getValue().getPassword()).isNotEqualTo("TempPass2026!");
         assertThat(passwordEncoder.matches("TempPass2026!", captor.getValue().getPassword())).isTrue();
+    }
+
+    @Test
+    @DisplayName("rattache l'organisation par defaut au compte cree")
+    void createAssignsDefaultOrganization() {
+        when(userRepository.existsByUsernameIgnoreCase("fatou.diop")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+        userService.create(request());
+
+        var captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertThat(captor.getValue().getOrganization().getId()).isEqualTo(1L);
     }
 
     @Test
