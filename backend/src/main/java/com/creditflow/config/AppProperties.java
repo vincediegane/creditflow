@@ -51,6 +51,20 @@ public class AppProperties {
     public static class Storage {
         private String uploadDir = "./data/uploads";
         private String publicPath = "/uploads";
+        private String provider = "local";
+        private S3 s3 = new S3();
+    }
+
+    @Getter
+    @Setter
+    public static class S3 {
+        private String bucket;
+        private String region;
+        private String accessKey;
+        private String secretKey;
+        private String endpoint;
+        private boolean pathStyleAccess = false;
+        private int signedUrlTtlSeconds = 300;
     }
 
     @Getter

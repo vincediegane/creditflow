@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
-  Avatar,
   Box,
   Button,
   Card,
@@ -25,11 +24,12 @@ import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import { errorMessage } from '../api/client';
 import { customersApi } from '../api/endpoints';
 import AuditHistoryCard from '../components/AuditHistoryCard';
+import CustomerAvatar from '../components/CustomerAvatar';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
 import ReminderDialog from '../components/ReminderDialog';
 import StatusChip from '../components/StatusChip';
-import { PAYMENT_METHOD_LABELS, formatDate, formatMoney, initials } from '../utils/format';
+import { PAYMENT_METHOD_LABELS, formatDate, formatMoney } from '../utils/format';
 import { validateMaxFileSize } from '../utils/fileValidation';
 
 export default function CustomerDetailPage() {
@@ -94,12 +94,10 @@ export default function CustomerDetailPage() {
           <Card variant="outlined">
             <CardContent>
               <Stack alignItems="center" spacing={1.5}>
-                <Avatar
-                  src={customer.photoUrl}
+                <CustomerAvatar
+                  customer={customer}
                   sx={{ width: 96, height: 96, bgcolor: 'primary.light', fontSize: 32 }}
-                >
-                  {initials(customer.fullName)}
-                </Avatar>
+                />
                 <Typography variant="h6">{customer.fullName}</Typography>
                 <Typography variant="body2" color="text.secondary">
                   {customer.phone}

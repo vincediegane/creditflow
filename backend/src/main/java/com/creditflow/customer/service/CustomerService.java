@@ -6,7 +6,8 @@ import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.repository.Specs;
 import com.creditflow.common.security.CurrentShopContext;
-import com.creditflow.common.storage.FileStorageService;
+import com.creditflow.common.storage.DocumentAccess;
+import com.creditflow.common.storage.DocumentStorage;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.dto.CustomerRequest;
 import com.creditflow.customer.dto.CustomerResponse;
@@ -35,7 +36,7 @@ public class CustomerService {
 
     private final CustomerRepository customerRepository;
     private final CustomerMapper customerMapper;
-    private final FileStorageService fileStorageService;
+    private final DocumentStorage documentStorage;
     private final AuditLogService auditLogService;
     private final CurrentShopContext currentShopContext;
     private final ShopRepository shopRepository;
@@ -121,7 +122,7 @@ public class CustomerService {
     public void delete(Long id) {
         Customer customer = getEntity(id);
         auditLogService.record("CUSTOMER", id, customer.getFullName(), "DELETE", null);
-        fileStorageService.deleteByPublicUrl(customer.getPhotoUrl());
+        documentStorage.delete(customer.getPhotoUrl());
         customerRepository.delete(customer);
         log.info("Client supprime: {}", id);
     }
@@ -130,10 +131,19 @@ public class CustomerService {
     public CustomerResponse uploadPhoto(Long id, MultipartFile file) {
         Customer customer = getEntity(id);
         String previous = customer.getPhotoUrl();
-        customer.setPhotoUrl(fileStorageService.store(file, "customers"));
+        customer.setPhotoUrl(documentStorage.store(file, "customers"));
         Customer saved = customerRepository.save(customer);
-        fileStorageService.deleteByPublicUrl(previous);
+        documentStorage.delete(previous);
         return customerMapper.toResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public DocumentAccess resolvePhoto(Long id) {
+        Customer customer = getEntity(id);
+        if (!StringUtils.hasText(customer.getPhotoUrl())) {
+            throw ResourceNotFoundException.of("Photo", id);
+        }
+        return documentStorage.resolve(customer.getPhotoUrl());
     }
 
     private void assertPhoneAvailable(String phone, Long id) {

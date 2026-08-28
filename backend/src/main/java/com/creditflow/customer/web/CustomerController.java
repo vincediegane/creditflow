@@ -1,6 +1,7 @@
 package com.creditflow.customer.web;
 
 import com.creditflow.common.dto.PageResponse;
+import com.creditflow.common.storage.web.DocumentAccessResponses;
 import com.creditflow.customer.dto.CustomerDetailResponse;
 import com.creditflow.customer.dto.CustomerRequest;
 import com.creditflow.customer.dto.CustomerResponse;
@@ -94,6 +95,12 @@ public class CustomerController {
     @Operation(summary = "Televerser la photo du client")
     public CustomerResponse uploadPhoto(@PathVariable Long id, @RequestPart("file") MultipartFile file) {
         return customerService.uploadPhoto(id, file);
+    }
+
+    @GetMapping("/{id}/photo")
+    @Operation(summary = "Consulter la photo du client")
+    public ResponseEntity<byte[]> photo(@PathVariable Long id) {
+        return DocumentAccessResponses.toResponseEntity(customerService.resolvePhoto(id));
     }
 
     @DeleteMapping("/{id}")

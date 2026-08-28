@@ -4,7 +4,8 @@ import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.security.CurrentShopContext;
-import com.creditflow.common.storage.FileStorageService;
+import com.creditflow.common.storage.DocumentAccess;
+import com.creditflow.common.storage.DocumentStorage;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.service.CustomerService;
 import com.creditflow.payment.mapper.PaymentMapper;
@@ -100,7 +101,7 @@ class CreditSaleServiceTest {
     private PenaltySettingsService penaltySettingsService;
 
     @Mock
-    private FileStorageService fileStorageService;
+    private DocumentStorage documentStorage;
 
     @Mock
     private CurrentShopContext currentShopContext;
@@ -172,7 +173,7 @@ class CreditSaleServiceTest {
 
         creditSaleService.delete(1L);
 
-        verify(fileStorageService).deleteByPublicUrl("/uploads/sales/1/a.png");
+        verify(documentStorage).delete("/uploads/sales/1/a.png");
         verify(auditLogService).record("CREDIT_SALE", 1L, "VC-2026-00001", "DELETE", null);
         verify(saleRepository).delete(sale);
     }
@@ -326,7 +327,7 @@ class CreditSaleServiceTest {
 
         CreditSaleService service = new CreditSaleService(saleRepository, installmentRepository, paymentRepository,
                 saleAttachmentRepository, customerService, realProductService, scheduleGenerator, saleMapper,
-                paymentMapper, auditLogService, penaltySettingsService, fileStorageService, currentShopContext,
+                paymentMapper, auditLogService, penaltySettingsService, documentStorage, currentShopContext,
                 shopRepository, invoiceGenerator, deliveryNoteGenerator);
 
         CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
@@ -345,7 +346,7 @@ class CreditSaleServiceTest {
     void accumulatesIdDocumentAttachments() {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "cni.png", "image/png", new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47});
-        when(fileStorageService.store(file, "sales/1")).thenReturn("/uploads/sales/1/cni.png");
+        when(documentStorage.store(file, "sales/1")).thenReturn("/uploads/sales/1/cni.png");
         when(saleAttachmentRepository.save(any(SaleAttachment.class))).thenAnswer(i -> {
             SaleAttachment saved = i.getArgument(0);
             saved.setId(5L);
@@ -368,12 +369,12 @@ class CreditSaleServiceTest {
                 .thenReturn(List.of(existing));
         MockMultipartFile file = new MockMultipartFile(
                 "file", "signature.png", "image/png", new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47});
-        when(fileStorageService.store(file, "sales/1")).thenReturn("/uploads/sales/1/new.png");
+        when(documentStorage.store(file, "sales/1")).thenReturn("/uploads/sales/1/new.png");
         when(saleAttachmentRepository.save(any(SaleAttachment.class))).thenAnswer(i -> i.getArgument(0));
 
         creditSaleService.uploadAttachment(1L, SaleAttachmentType.SIGNATURE, file);
 
-        verify(fileStorageService).deleteByPublicUrl("/uploads/sales/1/old.png");
+        verify(documentStorage).delete("/uploads/sales/1/old.png");
         verify(saleAttachmentRepository).delete(existing);
         verify(saleAttachmentRepository).save(any(SaleAttachment.class));
     }
@@ -387,7 +388,7 @@ class CreditSaleServiceTest {
 
         creditSaleService.deleteAttachment(1L, 3L);
 
-        verify(fileStorageService).deleteByPublicUrl("/uploads/sales/1/doc.png");
+        verify(documentStorage).delete("/uploads/sales/1/doc.png");
         verify(saleAttachmentRepository).delete(attachment);
         verify(auditLogService).record("CREDIT_SALE", 1L, "VC-2026-00001", "ATTACHMENT_REMOVE", "OTHER");
     }
@@ -400,6 +401,38 @@ class CreditSaleServiceTest {
         assertThatThrownBy(() -> creditSaleService.deleteAttachment(1L, 3L))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(saleAttachmentRepository, never()).delete(any(SaleAttachment.class));
+    }
+
+    @Test
+    @DisplayName("resolveAttachment delegue au DocumentStorage pour une piece jointe existante")
+    void resolveAttachmentDelegatesToDocumentStorage() {
+        SaleAttachment attachment = SaleAttachment.builder()
+                .id(3L).sale(sale).type(SaleAttachmentType.OTHER).fileUrl("/uploads/sales/1/doc.png").build();
+        when(saleAttachmentRepository.findByIdAndSaleId(3L, 1L)).thenReturn(Optional.of(attachment));
+        DocumentAccess access = new DocumentAccess.Inline(new byte[]{1, 2, 3}, "image/png");
+        when(documentStorage.resolve("/uploads/sales/1/doc.png")).thenReturn(access);
+
+        assertThat(creditSaleService.resolveAttachment(1L, 3L)).isSameAs(access);
+    }
+
+    @Test
+    @DisplayName("resolveAttachment leve une exception si la piece jointe n'existe pas pour ce contrat")
+    void resolveAttachmentThrowsWhenAttachmentMissing() {
+        when(saleAttachmentRepository.findByIdAndSaleId(3L, 1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> creditSaleService.resolveAttachment(1L, 3L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("resolveAttachment refuse l'acces a un contrat d'une autre boutique")
+    void resolveAttachmentRejectsSaleFromAnotherShop() {
+        org.mockito.Mockito.doThrow(new ResourceNotFoundException("Ressource introuvable"))
+                .when(currentShopContext).assertAccessible(1L);
+
+        assertThatThrownBy(() -> creditSaleService.resolveAttachment(1L, 3L))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(saleAttachmentRepository, never()).findByIdAndSaleId(any(), any());
     }
 
     @Test

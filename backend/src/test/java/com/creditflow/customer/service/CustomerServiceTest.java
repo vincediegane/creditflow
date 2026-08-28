@@ -4,7 +4,8 @@ import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.security.CurrentShopContext;
-import com.creditflow.common.storage.FileStorageService;
+import com.creditflow.common.storage.DocumentAccess;
+import com.creditflow.common.storage.DocumentStorage;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.customer.dto.CustomerRequest;
 import com.creditflow.customer.mapper.CustomerMapper;
@@ -41,7 +42,7 @@ class CustomerServiceTest {
     private CustomerMapper customerMapper;
 
     @Mock
-    private FileStorageService fileStorageService;
+    private DocumentStorage documentStorage;
 
     @Mock
     private AuditLogService auditLogService;
@@ -149,6 +150,47 @@ class CustomerServiceTest {
                 .when(currentShopContext).assertAccessible(2L);
 
         assertThatThrownBy(() -> customerService.getEntity(5L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("resolvePhoto delegue au DocumentStorage quand une photo existe")
+    void resolvePhotoDelegatesToDocumentStorage() {
+        Shop shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
+        Customer customer = Customer.builder()
+                .id(1L).firstName("Amadou").lastName("Diallo").phone("770000001").active(true)
+                .shop(shop).photoUrl("/uploads/customers/a.png").build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+        DocumentAccess access = new DocumentAccess.Inline(new byte[]{1, 2, 3}, "image/png");
+        when(documentStorage.resolve("/uploads/customers/a.png")).thenReturn(access);
+
+        assertThat(customerService.resolvePhoto(1L)).isSameAs(access);
+    }
+
+    @Test
+    @DisplayName("resolvePhoto leve une exception quand le client n'a pas de photo")
+    void resolvePhotoThrowsWhenNoPhoto() {
+        Shop shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
+        Customer customer = Customer.builder()
+                .id(1L).firstName("Amadou").lastName("Diallo").phone("770000001").active(true).shop(shop).build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+
+        assertThatThrownBy(() -> customerService.resolvePhoto(1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("resolvePhoto refuse l'acces a un client d'une autre boutique")
+    void resolvePhotoRejectsCustomerFromAnotherShop() {
+        Shop otherShop = Shop.builder().id(2L).name("Autre boutique").active(true).build();
+        Customer customer = Customer.builder()
+                .id(5L).firstName("Fatou").lastName("Ndiaye").phone("770000009").active(true)
+                .shop(otherShop).photoUrl("/uploads/customers/a.png").build();
+        when(customerRepository.findById(5L)).thenReturn(Optional.of(customer));
+        org.mockito.Mockito.doThrow(new ResourceNotFoundException("Ressource introuvable"))
+                .when(currentShopContext).assertAccessible(2L);
+
+        assertThatThrownBy(() -> customerService.resolvePhoto(5L))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 

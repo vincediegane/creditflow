@@ -76,6 +76,15 @@ app:
   storage:
     upload-dir: ${UPLOAD_DIR:./data/uploads}
     public-path: /uploads
+    provider: ${STORAGE_PROVIDER:local}
+    s3:
+      bucket: ${STORAGE_S3_BUCKET:}
+      region: ${STORAGE_S3_REGION:}
+      access-key: ${STORAGE_S3_ACCESS_KEY:}
+      secret-key: ${STORAGE_S3_SECRET_KEY:}
+      endpoint: ${STORAGE_S3_ENDPOINT:}
+      path-style-access: ${STORAGE_S3_PATH_STYLE_ACCESS:false}
+      signed-url-ttl-seconds: ${STORAGE_SIGNED_URL_TTL_SECONDS:300}
   admin:
     username: ${ADMIN_USERNAME:admin}
     password: ${ADMIN_PASSWORD:admin123}

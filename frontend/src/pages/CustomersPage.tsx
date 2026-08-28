@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
-  Avatar,
   Box,
   Button,
   Card,
@@ -37,10 +36,11 @@ import { errorMessage } from '../api/client';
 import { customersApi } from '../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
 import ConfirmDialog from '../components/ConfirmDialog';
+import CustomerAvatar from '../components/CustomerAvatar';
 import EmptyRow from '../components/EmptyRow';
 import PageHeader from '../components/PageHeader';
 import type { Customer, CustomerPayload } from '../types';
-import { formatDate, initials } from '../utils/format';
+import { formatDate } from '../utils/format';
 
 const EMPTY_FORM: CustomerPayload = {
   firstName: '',
@@ -191,12 +191,10 @@ export default function CustomersPage() {
                 <TableRow key={customer.id} hover>
                   <TableCell>
                     <Stack direction="row" spacing={1.5} alignItems="center">
-                      <Avatar
-                        src={customer.photoUrl}
+                      <CustomerAvatar
+                        customer={customer}
                         sx={{ width: 36, height: 36, bgcolor: 'primary.light', fontSize: 14 }}
-                      >
-                        {initials(customer.fullName)}
-                      </Avatar>
+                      />
                       <Box sx={{ fontWeight: 600 }}>{customer.fullName}</Box>
                     </Stack>
                   </TableCell>

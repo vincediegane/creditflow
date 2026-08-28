@@ -1,6 +1,7 @@
 package com.creditflow.common.storage;
 
 import com.creditflow.common.exception.BusinessRuleException;
+import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.config.AppProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,7 +15,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class FileStorageServiceTest {
+class LocalDiskStorageTest {
 
     private static final byte[] PNG_BYTES = {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
     private static final byte[] JPEG_BYTES = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0};
@@ -22,41 +23,41 @@ class FileStorageServiceTest {
             0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50
     };
 
-    private FileStorageService fileStorageService;
+    private LocalDiskStorage localDiskStorage;
 
     @BeforeEach
     void setUp(@TempDir Path tempDir) {
         AppProperties properties = new AppProperties();
         properties.getStorage().setUploadDir(tempDir.toString());
         properties.getStorage().setPublicPath("/uploads");
-        fileStorageService = new FileStorageService(properties);
+        localDiskStorage = new LocalDiskStorage(properties, new DocumentValidation());
     }
 
     @Test
     @DisplayName("accepte un PNG valide")
     void acceptsValidPng() {
-        String url = fileStorageService.store(
+        String key = localDiskStorage.store(
                 new MockMultipartFile("file", "photo.png", "image/png", PNG_BYTES), "sales/1");
 
-        assertThat(url).startsWith("/uploads/sales/1/").endsWith(".png");
+        assertThat(key).startsWith("/uploads/sales/1/").endsWith(".png");
     }
 
     @Test
     @DisplayName("accepte un JPEG valide")
     void acceptsValidJpeg() {
-        String url = fileStorageService.store(
+        String key = localDiskStorage.store(
                 new MockMultipartFile("file", "photo.jpg", "image/jpeg", JPEG_BYTES), "sales/1");
 
-        assertThat(url).endsWith(".jpg");
+        assertThat(key).endsWith(".jpg");
     }
 
     @Test
     @DisplayName("accepte un WEBP valide")
     void acceptsValidWebp() {
-        String url = fileStorageService.store(
+        String key = localDiskStorage.store(
                 new MockMultipartFile("file", "photo.webp", "image/webp", WEBP_BYTES), "sales/1");
 
-        assertThat(url).endsWith(".webp");
+        assertThat(key).endsWith(".webp");
     }
 
     @Test
@@ -65,7 +66,7 @@ class FileStorageServiceTest {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "fake.png", "image/png", "ceci n'est pas une image".getBytes(StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> fileStorageService.store(file, "sales/1"))
+        assertThatThrownBy(() -> localDiskStorage.store(file, "sales/1"))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("ne correspond pas");
     }
@@ -75,7 +76,7 @@ class FileStorageServiceTest {
     void rejectsMismatchedJpegContent() {
         MockMultipartFile file = new MockMultipartFile("file", "fake.jpg", "image/jpeg", PNG_BYTES);
 
-        assertThatThrownBy(() -> fileStorageService.store(file, "sales/1"))
+        assertThatThrownBy(() -> localDiskStorage.store(file, "sales/1"))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("ne correspond pas");
     }
@@ -86,8 +87,29 @@ class FileStorageServiceTest {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "document.pdf", "application/pdf", "%PDF-1.4".getBytes(StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> fileStorageService.store(file, "sales/1"))
+        assertThatThrownBy(() -> localDiskStorage.store(file, "sales/1"))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("Format d'image non supporte");
+    }
+
+    @Test
+    @DisplayName("resolve retourne le contenu et le content-type d'un fichier existant")
+    void resolvesExistingFile() {
+        String key = localDiskStorage.store(
+                new MockMultipartFile("file", "photo.png", "image/png", PNG_BYTES), "customers");
+
+        DocumentAccess access = localDiskStorage.resolve(key);
+
+        assertThat(access).isInstanceOf(DocumentAccess.Inline.class);
+        DocumentAccess.Inline inline = (DocumentAccess.Inline) access;
+        assertThat(inline.content()).isEqualTo(PNG_BYTES);
+        assertThat(inline.contentType()).isEqualTo("image/png");
+    }
+
+    @Test
+    @DisplayName("resolve leve une exception quand le fichier est absent")
+    void resolveThrowsWhenFileMissing() {
+        assertThatThrownBy(() -> localDiskStorage.resolve("/uploads/customers/inexistant.png"))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 }
