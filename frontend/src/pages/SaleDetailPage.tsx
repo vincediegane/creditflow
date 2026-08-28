@@ -33,6 +33,7 @@ import ReceiptIcon from '@mui/icons-material/ReceiptLong';
 import { errorMessage } from '../api/client';
 import { paymentsApi, salesApi } from '../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
+import AttachmentThumbnail from '../components/AttachmentThumbnail';
 import AuditHistoryCard from '../components/AuditHistoryCard';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyRow from '../components/EmptyRow';
@@ -438,12 +439,7 @@ export default function SaleDetailPage() {
                         overflow: 'hidden',
                       }}
                     >
-                      <Box
-                        component="img"
-                        src={attachment.fileUrl}
-                        alt={ATTACHMENT_TYPE_LABELS[attachment.type]}
-                        sx={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }}
-                      />
+                      <AttachmentThumbnail attachment={attachment} alt={ATTACHMENT_TYPE_LABELS[attachment.type]} />
                       <Stack
                         direction="row"
                         justifyContent="space-between"
