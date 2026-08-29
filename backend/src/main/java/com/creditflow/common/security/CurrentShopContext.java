@@ -57,7 +57,7 @@ public class CurrentShopContext {
                     .toList();
         }
         if (user.getRole() == Role.ADMIN) {
-            return shopRepository.findAllByActiveTrueOrderByNameAsc();
+            return shopRepository.findAllByActiveTrueAndOrganizationIdOrderByNameAsc(user.getOrganization().getId());
         }
         throw new BusinessRuleException("Aucune boutique n'est assignee a votre compte. Contactez votre administrateur.");
     }
