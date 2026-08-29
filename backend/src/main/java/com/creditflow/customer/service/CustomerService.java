@@ -45,7 +45,8 @@ public class CustomerService {
     public PageResponse<CustomerResponse> search(String search, Pageable pageable) {
         Page<Customer> page = customerRepository.findAll(
                 Specs.combine(CustomerSpecifications.matches(search),
-                        CustomerSpecifications.inShops(currentShopContext.accessibleShopIds())),
+                        CustomerSpecifications.inShops(currentShopContext.accessibleShopIds()),
+                        CustomerSpecifications.inOrganization(currentShopContext.currentOrganizationId())),
                 pageable);
         return PageResponse.of(page, customerMapper::toResponse);
     }
@@ -56,7 +57,7 @@ public class CustomerService {
             return List.of();
         }
         return customerRepository.quickSearch(search.trim(), currentShopContext.accessibleShopIds(),
-                        PageRequest.of(0, limit))
+                        currentShopContext.currentOrganizationId(), PageRequest.of(0, limit))
                 .stream()
                 .map(customerMapper::toResponse)
                 .toList();
@@ -65,7 +66,8 @@ public class CustomerService {
     @Transactional(readOnly = true)
     public List<CustomerResponse> findAllForSelect() {
         return customerRepository.findAll(
-                        Specs.combine(CustomerSpecifications.inShops(currentShopContext.accessibleShopIds())),
+                        Specs.combine(CustomerSpecifications.inShops(currentShopContext.accessibleShopIds()),
+                                CustomerSpecifications.inOrganization(currentShopContext.currentOrganizationId())),
                         Sort.by("lastName", "firstName"))
                 .stream()
                 .filter(Customer::isActive)

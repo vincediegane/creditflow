@@ -80,6 +80,7 @@ class ProductServiceTest {
         when(productRepository.save(any(Product.class))).thenAnswer(i -> i.getArgument(0));
         when(currentShopContext.accessibleShopIds()).thenReturn(List.of(1L));
         when(currentShopContext.shopIdForCreation()).thenReturn(1L);
+        when(currentShopContext.currentOrganizationId()).thenReturn(100L);
         when(shopRepository.getReferenceById(1L)).thenReturn(shop);
     }
 
@@ -192,5 +193,21 @@ class ProductServiceTest {
         ArgumentCaptor<Product> captor = ArgumentCaptor.forClass(Product.class);
         verify(productRepository).save(captor.capture());
         assertThat(captor.getValue().getShop().getId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("la recherche rapide transmet l'id d'organisation au repository")
+    void quickSearchPassesOrganizationIdToRepository() {
+        productService.quickSearch("iPhone", 10);
+
+        verify(productRepository).quickSearch(eq("iPhone"), eq(List.of(1L)), eq(100L), any());
+    }
+
+    @Test
+    @DisplayName("categories transmet l'id d'organisation au repository")
+    void categoriesPassesOrganizationIdToRepository() {
+        productService.categories();
+
+        verify(productRepository).findAllCategories(List.of(1L), 100L);
     }
 }

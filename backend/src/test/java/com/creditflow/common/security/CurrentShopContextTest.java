@@ -206,6 +206,17 @@ class CurrentShopContextTest {
     }
 
     @Test
+    @DisplayName("currentOrganizationId retourne l'organisation de l'utilisateur authentifie courant")
+    void currentOrganizationIdReturnsAuthenticatedUserOrganization() {
+        User admin = User.builder().username("admin").role(Role.ADMIN).organization(organizationA)
+                .shops(new HashSet<>()).build();
+        when(userRepository.findByUsernameIgnoreCase("admin")).thenReturn(Optional.of(admin));
+        authenticateAs("admin");
+
+        assertThat(currentShopContext.currentOrganizationId()).isEqualTo(organizationA.getId());
+    }
+
+    @Test
     @DisplayName("assertAccessible leve ResourceNotFoundException pour une boutique hors perimetre")
     void assertAccessibleFailsForOutOfScopeShop() {
         User seller = User.builder().username("vendeur").role(Role.SELLER)

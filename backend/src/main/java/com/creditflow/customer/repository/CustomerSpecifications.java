@@ -33,4 +33,11 @@ public final class CustomerSpecifications {
         }
         return (root, query, cb) -> root.get("shop").get("id").in(shopIds);
     }
+
+    public static Specification<Customer> inOrganization(Long organizationId) {
+        if (organizationId == null) {
+            return null;
+        }
+        return (root, query, cb) -> cb.equal(root.get("shop").get("organization").get("id"), organizationId);
+    }
 }

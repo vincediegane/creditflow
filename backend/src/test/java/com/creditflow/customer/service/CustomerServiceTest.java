@@ -27,6 +27,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,6 +66,7 @@ class CustomerServiceTest {
     void setUp() {
         when(currentShopContext.accessibleShopIds()).thenReturn(java.util.List.of(1L));
         when(currentShopContext.shopIdForCreation()).thenReturn(1L);
+        when(currentShopContext.currentOrganizationId()).thenReturn(100L);
         when(shopRepository.getReferenceById(1L))
                 .thenReturn(Shop.builder().id(1L).name("Boutique principale").active(true).build());
     }
@@ -122,7 +124,15 @@ class CustomerServiceTest {
     @DisplayName("la recherche rapide ignore une requete vide")
     void quickSearchIgnoresBlankQuery() {
         assertThat(customerService.quickSearch("  ", 10)).isEmpty();
-        verify(customerRepository, never()).quickSearch(any(), any(), any());
+        verify(customerRepository, never()).quickSearch(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("la recherche rapide transmet l'id d'organisation au repository")
+    void quickSearchPassesOrganizationIdToRepository() {
+        customerService.quickSearch("Amadou", 10);
+
+        verify(customerRepository).quickSearch(eq("Amadou"), eq(java.util.List.of(1L)), eq(100L), any());
     }
 
     @Test
