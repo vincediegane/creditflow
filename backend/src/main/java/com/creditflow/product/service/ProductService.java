@@ -53,7 +53,8 @@ public class ProductService {
                         ProductSpecifications.matches(search),
                         ProductSpecifications.hasCategory(category),
                         ProductSpecifications.hasStatus(status),
-                        ProductSpecifications.inShops(currentShopContext.accessibleShopIds())),
+                        ProductSpecifications.inShops(currentShopContext.accessibleShopIds()),
+                        ProductSpecifications.inOrganization(currentShopContext.currentOrganizationId())),
                 pageable);
         return PageResponse.of(page, productMapper::toResponse);
     }
@@ -61,7 +62,8 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<ProductResponse> findAllForSelect() {
         return productRepository.findAll(
-                        Specs.combine(ProductSpecifications.inShops(currentShopContext.accessibleShopIds())),
+                        Specs.combine(ProductSpecifications.inShops(currentShopContext.accessibleShopIds()),
+                                ProductSpecifications.inOrganization(currentShopContext.currentOrganizationId())),
                         Sort.by("name"))
                 .stream()
                 .filter(p -> p.getStatus() != ProductStatus.INACTIVE)
@@ -75,7 +77,7 @@ public class ProductService {
             return List.of();
         }
         return productRepository.quickSearch(search.trim(), currentShopContext.accessibleShopIds(),
-                        PageRequest.of(0, limit))
+                        currentShopContext.currentOrganizationId(), PageRequest.of(0, limit))
                 .stream()
                 .map(productMapper::toResponse)
                 .toList();
@@ -83,7 +85,8 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public List<String> categories() {
-        return productRepository.findAllCategories(currentShopContext.accessibleShopIds());
+        return productRepository.findAllCategories(currentShopContext.accessibleShopIds(),
+                currentShopContext.currentOrganizationId());
     }
 
     @Transactional(readOnly = true)

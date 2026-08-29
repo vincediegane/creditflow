@@ -79,7 +79,7 @@ public class LegacyImportService {
             customerIsNew.putIfAbsent(row.phone(), newCustomer);
 
             String productKey = row.productName().toLowerCase(Locale.ROOT);
-            boolean newProduct = findProductByName(row.productName()).isEmpty()
+            boolean newProduct = findProductByName(row.productName(), targetShopId).isEmpty()
                     && !productIsNew.containsKey(productKey);
             productIsNew.putIfAbsent(productKey, newProduct);
 
@@ -181,7 +181,7 @@ public class LegacyImportService {
     }
 
     private Product resolveProduct(LegacyRow row, Long targetShopId) {
-        return findProductByName(row.productName())
+        return findProductByName(row.productName(), targetShopId)
                 .orElseGet(() -> productRepository.save(Product.builder()
                         .name(row.productName())
                         .category(row.category())
@@ -194,8 +194,8 @@ public class LegacyImportService {
                         .build()));
     }
 
-    private Optional<Product> findProductByName(String name) {
-        return productRepository.findFirstByNameIgnoreCase(name.trim());
+    private Optional<Product> findProductByName(String name, Long targetShopId) {
+        return productRepository.findFirstByNameIgnoreCaseAndShop_Id(name.trim(), targetShopId);
     }
 
     // ------------------------------------------------------------------
