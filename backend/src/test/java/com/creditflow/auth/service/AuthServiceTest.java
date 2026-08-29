@@ -11,6 +11,7 @@ import com.creditflow.auth.security.JwtService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.config.AppProperties;
+import com.creditflow.organization.domain.Organization;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.dto.ShopSummary;
 import com.creditflow.shop.repository.ShopRepository;
@@ -77,6 +78,7 @@ class AuthServiceTest {
                 .password(passwordEncoder.encode("MotDePasseInitial1"))
                 .fullName("Proprietaire")
                 .role(Role.ADMIN)
+                .organization(Organization.builder().id(1L).name("Organisation principale").build())
                 .enabled(true)
                 .mustChangePassword(true)
                 .build();
@@ -161,7 +163,7 @@ class AuthServiceTest {
                 "key", "anonymousUser", List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))));
 
         ShopRepository shopRepository = mock(ShopRepository.class);
-        when(shopRepository.findAllByActiveTrueOrderByNameAsc())
+        when(shopRepository.findAllByActiveTrueAndOrganizationIdOrderByNameAsc(user.getOrganization().getId()))
                 .thenReturn(List.of(Shop.builder().id(1L).name("Boutique principale").active(true).build()));
         AuthService service = new AuthService(authenticationManager, userRepository, jwtService, passwordEncoder,
                 new CurrentShopContext(userRepository, shopRepository), properties);

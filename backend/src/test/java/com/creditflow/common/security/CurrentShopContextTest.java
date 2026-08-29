@@ -5,6 +5,7 @@ import com.creditflow.auth.domain.User;
 import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.organization.domain.Organization;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.repository.ShopRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -29,6 +30,8 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +49,8 @@ class CurrentShopContextTest {
 
     private final Shop shop1 = Shop.builder().id(1L).name("Boutique 1").active(true).build();
     private final Shop shop2 = Shop.builder().id(2L).name("Boutique 2").active(true).build();
+    private final Organization organizationA = Organization.builder().id(10L).name("Organisation A").build();
+    private final Organization organizationB = Organization.builder().id(20L).name("Organisation B").build();
 
     @AfterEach
     void tearDown() {
@@ -70,14 +75,60 @@ class CurrentShopContextTest {
     }
 
     @Test
-    @DisplayName("un ADMIN sans assignation accede a toutes les boutiques actives (super-admin)")
+    @DisplayName("un ADMIN sans assignation accede a toutes les boutiques actives de son organisation (mono-tenant)")
     void accessibleShopIdsForAdminWithoutAssignment() {
-        User admin = User.builder().username("admin").role(Role.ADMIN).shops(new HashSet<>()).build();
+        User admin = User.builder().username("admin").role(Role.ADMIN).organization(organizationA)
+                .shops(new HashSet<>()).build();
         when(userRepository.findByUsernameIgnoreCase("admin")).thenReturn(Optional.of(admin));
-        when(shopRepository.findAllByActiveTrueOrderByNameAsc()).thenReturn(List.of(shop1, shop2));
+        when(shopRepository.findAllByActiveTrueAndOrganizationIdOrderByNameAsc(organizationA.getId()))
+                .thenReturn(List.of(shop1, shop2));
         authenticateAs("admin");
 
         assertThat(currentShopContext.accessibleShopIds()).containsExactly(1L, 2L);
+    }
+
+    @Test
+    @DisplayName("un ADMIN sans assignation ne voit que les boutiques de sa propre organisation (isolation multi-tenant)")
+    void accessibleShopIdsForAdminWithoutAssignmentIsIsolatedByOrganization() {
+        User admin = User.builder().username("admin").role(Role.ADMIN).organization(organizationA)
+                .shops(new HashSet<>()).build();
+        when(userRepository.findByUsernameIgnoreCase("admin")).thenReturn(Optional.of(admin));
+        when(shopRepository.findAllByActiveTrueAndOrganizationIdOrderByNameAsc(organizationA.getId()))
+                .thenReturn(List.of(shop1));
+        when(shopRepository.findAllByActiveTrueAndOrganizationIdOrderByNameAsc(organizationB.getId()))
+                .thenReturn(List.of(shop2));
+        authenticateAs("admin");
+
+        assertThat(currentShopContext.accessibleShopIds()).containsExactly(1L);
+        verify(shopRepository, never()).findAllByActiveTrueAndOrganizationIdOrderByNameAsc(organizationB.getId());
+    }
+
+    @Test
+    @DisplayName("un ADMIN sans assignation dans une organisation sans boutique active n'accede a aucune boutique")
+    void accessibleShopIdsForAdminWithoutAssignmentInOrganizationWithoutActiveShops() {
+        User admin = User.builder().username("admin").role(Role.ADMIN).organization(organizationA)
+                .shops(new HashSet<>()).build();
+        when(userRepository.findByUsernameIgnoreCase("admin")).thenReturn(Optional.of(admin));
+        when(shopRepository.findAllByActiveTrueAndOrganizationIdOrderByNameAsc(organizationA.getId()))
+                .thenReturn(List.of());
+        authenticateAs("admin");
+
+        assertThat(currentShopContext.accessibleShopIds()).isEmpty();
+        assertThat(currentShopContext.resolveReadFilter()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("shopIdForCreation leve une exception pour un ADMIN sans aucune boutique accessible")
+    void shopIdForCreationFailsForAdminWithoutAccessibleShops() {
+        User admin = User.builder().username("admin").role(Role.ADMIN).organization(organizationA)
+                .shops(new HashSet<>()).build();
+        when(userRepository.findByUsernameIgnoreCase("admin")).thenReturn(Optional.of(admin));
+        when(shopRepository.findAllByActiveTrueAndOrganizationIdOrderByNameAsc(organizationA.getId()))
+                .thenReturn(List.of());
+        authenticateAs("admin");
+
+        assertThatThrownBy(() -> currentShopContext.shopIdForCreation())
+                .isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
