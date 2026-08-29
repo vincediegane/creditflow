@@ -40,6 +40,11 @@ public class CurrentShopContext {
         return accessibleShopsOf(user).stream().map(Shop::getId).toList();
     }
 
+    /** Organisation de l'utilisateur authentifie courant (toujours definie). */
+    public Long currentOrganizationId() {
+        return currentUser().getOrganization().getId();
+    }
+
     /** Resumes (id + nom) des boutiques accessibles — utilise par AuthResponse. */
     public List<ShopSummary> accessibleShops() {
         return accessibleShops(currentUser());

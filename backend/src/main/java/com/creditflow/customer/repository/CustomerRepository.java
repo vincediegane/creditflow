@@ -17,10 +17,11 @@ public interface CustomerRepository extends JpaRepository<Customer, Long>, JpaSp
             WHERE (LOWER(CONCAT(c.firstName, ' ', c.lastName)) LIKE LOWER(CONCAT('%', :search, '%'))
                OR c.phone LIKE CONCAT('%', :search, '%'))
               AND c.shop.id IN :shopIds
+              AND c.shop.organization.id = :organizationId
             ORDER BY c.lastName ASC
             """)
     List<Customer> quickSearch(@Param("search") String search, @Param("shopIds") List<Long> shopIds,
-                                Pageable pageable);
+                                @Param("organizationId") Long organizationId, Pageable pageable);
 
     Optional<Customer> findByPhone(String phone);
 
