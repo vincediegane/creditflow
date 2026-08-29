@@ -89,7 +89,7 @@ class LegacyImportServiceTest {
         when(parser.parse(file)).thenReturn(new LegacyImportParser.ParseResult(List.of(row), List.of(), 1));
         when(customerRepository.existsByPhone("771110001")).thenReturn(false);
         when(customerRepository.findByPhone("771110001")).thenReturn(Optional.empty());
-        when(productRepository.findFirstByNameIgnoreCase("Tecno Spark")).thenReturn(Optional.empty());
+        when(productRepository.findFirstByNameIgnoreCaseAndShop_Id("Tecno Spark", 1L)).thenReturn(Optional.empty());
         when(customerRepository.save(any(Customer.class))).thenAnswer(i -> {
             Customer c = i.getArgument(0);
             c.setId(10L);
@@ -115,6 +115,39 @@ class LegacyImportServiceTest {
     }
 
     @Test
+    @DisplayName("ne reutilise pas un produit du meme nom appartenant a une autre boutique")
+    void doesNotReuseProductWithSameNameFromAnotherShop() {
+        LegacyRow row = row("771110003", "Tecno Spark");
+        Shop otherShop = Shop.builder().id(2L).name("Autre boutique").active(true).build();
+        Product existingInOtherShop = Product.builder().id(30L).name("Tecno Spark").shop(otherShop).build();
+
+        when(currentShopContext.shopIdForCreation()).thenReturn(1L);
+        when(shopRepository.getReferenceById(1L)).thenReturn(shop);
+        when(parser.parse(file)).thenReturn(new LegacyImportParser.ParseResult(List.of(row), List.of(), 1));
+        when(customerRepository.existsByPhone("771110003")).thenReturn(false);
+        when(customerRepository.findByPhone("771110003")).thenReturn(Optional.empty());
+        when(productRepository.findFirstByNameIgnoreCaseAndShop_Id("Tecno Spark", 1L)).thenReturn(Optional.empty());
+        when(customerRepository.save(any(Customer.class))).thenAnswer(i -> {
+            Customer c = i.getArgument(0);
+            c.setId(11L);
+            return c;
+        });
+        when(productRepository.save(any(Product.class))).thenAnswer(i -> {
+            Product p = i.getArgument(0);
+            p.setId(21L);
+            return p;
+        });
+        when(creditSaleService.create(any(CreateSaleRequest.class))).thenReturn(mock(SaleResponse.class));
+
+        legacyImportService.importLegacySales(file, false);
+
+        ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(productCaptor.capture());
+        assertThat(productCaptor.getValue().getShop().getId()).isEqualTo(1L);
+        assertThat(productCaptor.getValue().getId()).isNotEqualTo(existingInOtherShop.getId());
+    }
+
+    @Test
     @DisplayName("rejette clairement un telephone deja connu dans une autre boutique")
     void rejectsPhoneAlreadyUsedInAnotherShop() {
         LegacyRow row = row("771110002", "HP 250");
@@ -126,7 +159,7 @@ class LegacyImportServiceTest {
         when(parser.parse(file)).thenReturn(new LegacyImportParser.ParseResult(List.of(row), List.of(), 1));
         when(customerRepository.existsByPhone("771110002")).thenReturn(true);
         when(customerRepository.findByPhone("771110002")).thenReturn(Optional.of(existing));
-        when(productRepository.findFirstByNameIgnoreCase("HP 250")).thenReturn(Optional.empty());
+        when(productRepository.findFirstByNameIgnoreCaseAndShop_Id("HP 250", 1L)).thenReturn(Optional.empty());
         when(productRepository.save(any(Product.class))).thenAnswer(i -> i.getArgument(0));
 
         assertThatThrownBy(() -> legacyImportService.importLegacySales(file, false))
