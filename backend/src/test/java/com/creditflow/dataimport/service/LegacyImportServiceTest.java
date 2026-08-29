@@ -31,6 +31,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -127,6 +129,8 @@ class LegacyImportServiceTest {
         when(customerRepository.existsByPhone("771110003")).thenReturn(false);
         when(customerRepository.findByPhone("771110003")).thenReturn(Optional.empty());
         when(productRepository.findFirstByNameIgnoreCaseAndShop_Id("Tecno Spark", 1L)).thenReturn(Optional.empty());
+        when(productRepository.findFirstByNameIgnoreCaseAndShop_Id("Tecno Spark", 2L))
+                .thenReturn(Optional.of(existingInOtherShop));
         when(customerRepository.save(any(Customer.class))).thenAnswer(i -> {
             Customer c = i.getArgument(0);
             c.setId(11L);
@@ -141,10 +145,14 @@ class LegacyImportServiceTest {
 
         legacyImportService.importLegacySales(file, false);
 
+        verify(productRepository, atLeastOnce())
+                .findFirstByNameIgnoreCaseAndShop_Id(eq("Tecno Spark"), eq(1L));
+        verify(productRepository, never()).findFirstByNameIgnoreCaseAndShop_Id(eq("Tecno Spark"), eq(2L));
+
         ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
         verify(productRepository).save(productCaptor.capture());
         assertThat(productCaptor.getValue().getShop().getId()).isEqualTo(1L);
-        assertThat(productCaptor.getValue().getId()).isNotEqualTo(existingInOtherShop.getId());
+        assertThat(productCaptor.getValue()).isNotEqualTo(existingInOtherShop);
     }
 
     @Test
