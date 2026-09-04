@@ -68,4 +68,12 @@ public final class InstallmentSpecifications {
         }
         return (root, query, cb) -> root.get("sale").get("shop").get("id").in(shopIds);
     }
+
+    public static Specification<Installment> inOrganization(Long organizationId) {
+        if (organizationId == null) {
+            return null;
+        }
+        return (root, query, cb) ->
+                cb.equal(root.get("sale").get("shop").get("organization").get("id"), organizationId);
+    }
 }
