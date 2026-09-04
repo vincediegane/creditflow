@@ -63,13 +63,15 @@ public class DashboardService {
                 saleRepository.countByShop_IdIn(shopIds),
                 saleRepository.countByStatusAndShop_IdIn(SaleStatus.ACTIVE, shopIds),
                 saleRepository.countByStatusAndShop_IdIn(SaleStatus.COMPLETED, shopIds),
-                saleRepository.sumRemainingByStatusForShops(SaleStatus.ACTIVE, shopIds),
+                saleRepository.sumRemainingByStatusForShops(SaleStatus.ACTIVE, shopIds,
+                        currentShopContext.currentOrganizationId()),
                 paymentRepository.sumBetweenForShops(monthStart, monthEnd, shopIds),
                 paymentRepository.sumBetweenForShops(today, today, shopIds),
                 paymentRepository.countBetweenForShops(today, today, shopIds),
                 lateCustomers.size(),
-                installmentRepository.countLateForShops(today, shopIds),
-                nullToZero(installmentRepository.sumLateAmountForShops(today, shopIds)),
+                installmentRepository.countLateForShops(today, shopIds, currentShopContext.currentOrganizationId()),
+                nullToZero(installmentRepository.sumLateAmountForShops(today, shopIds,
+                        currentShopContext.currentOrganizationId())),
                 upcoming.size());
 
         return new DashboardResponse(

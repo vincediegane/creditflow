@@ -1,5 +1,6 @@
 package com.creditflow.notification.service;
 
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.notification.dto.LateCustomerResponse;
 import com.creditflow.penalty.domain.PenaltySettings;
@@ -32,13 +33,15 @@ public class LateCustomerService {
     private final InstallmentRepository installmentRepository;
     private final PenaltySettingsService penaltySettingsService;
     private final PenaltyCalculator penaltyCalculator;
+    private final CurrentShopContext currentShopContext;
 
     @Transactional(readOnly = true)
     public List<LateCustomerResponse> lateCustomers(List<Long> shopIds) {
         LocalDate today = LocalDate.now();
         PenaltySettings settings = penaltySettingsService.current();
 
-        Map<Long, List<Installment>> byCustomer = installmentRepository.findLateForShops(today, shopIds).stream()
+        Map<Long, List<Installment>> byCustomer = installmentRepository
+                .findLateForShops(today, shopIds, currentShopContext.currentOrganizationId()).stream()
                 .collect(Collectors.groupingBy(i -> i.getSale().getCustomer().getId(),
                         LinkedHashMap::new, Collectors.toList()));
 

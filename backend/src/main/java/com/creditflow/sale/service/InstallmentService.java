@@ -46,7 +46,8 @@ public class InstallmentService {
                         InstallmentSpecifications.dueFrom(from),
                         InstallmentSpecifications.dueTo(to),
                         InstallmentSpecifications.lateOn(onlyLate, today),
-                        InstallmentSpecifications.inShops(currentShopContext.accessibleShopIds())),
+                        InstallmentSpecifications.inShops(currentShopContext.accessibleShopIds()),
+                        InstallmentSpecifications.inOrganization(currentShopContext.currentOrganizationId())),
                 pageable);
         return PageResponse.of(page, installment -> saleMapper.toResponse(installment, today, settings));
     }
@@ -56,7 +57,7 @@ public class InstallmentService {
         LocalDate today = LocalDate.now();
         PenaltySettings settings = penaltySettingsService.current();
         return installmentRepository.findUpcomingForShops(today, today.plusDays(days),
-                        currentShopContext.accessibleShopIds())
+                        currentShopContext.accessibleShopIds(), currentShopContext.currentOrganizationId())
                 .stream()
                 .map(installment -> saleMapper.toResponse(installment, today, settings))
                 .toList();
@@ -67,7 +68,8 @@ public class InstallmentService {
     public List<InstallmentResponse> upcomingForShops(int days, List<Long> shopIds) {
         LocalDate today = LocalDate.now();
         PenaltySettings settings = penaltySettingsService.current();
-        return installmentRepository.findUpcomingForShops(today, today.plusDays(days), shopIds).stream()
+        return installmentRepository.findUpcomingForShops(today, today.plusDays(days), shopIds,
+                        currentShopContext.currentOrganizationId()).stream()
                 .map(installment -> saleMapper.toResponse(installment, today, settings))
                 .toList();
     }
@@ -76,7 +78,8 @@ public class InstallmentService {
     public List<InstallmentResponse> late() {
         LocalDate today = LocalDate.now();
         PenaltySettings settings = penaltySettingsService.current();
-        return installmentRepository.findLateForShops(today, currentShopContext.accessibleShopIds()).stream()
+        return installmentRepository.findLateForShops(today, currentShopContext.accessibleShopIds(),
+                        currentShopContext.currentOrganizationId()).stream()
                 .map(installment -> saleMapper.toResponse(installment, today, settings))
                 .toList();
     }
