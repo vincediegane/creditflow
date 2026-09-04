@@ -17,12 +17,18 @@ import java.util.Locale;
 public class DocumentValidation {
 
     private static final List<String> ALLOWED_EXTENSIONS = List.of("jpg", "jpeg", "png", "webp");
+    private static final List<String> HEIC_EXTENSIONS = List.of("heic", "heif");
 
     public byte[] validate(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessRuleException("Le fichier est vide");
         }
         String extension = extensionOf(file.getOriginalFilename());
+        if (HEIC_EXTENSIONS.contains(extension)) {
+            throw new BusinessRuleException(
+                    "Format HEIC/HEIF non pris en charge. Convertissez la photo en JPEG, ou sur iPhone : "
+                            + "Reglages > Appareil photo > Formats > Le plus compatible.");
+        }
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new BusinessRuleException("Format d'image non supporte (jpg, jpeg, png, webp)");
         }
