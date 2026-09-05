@@ -47,6 +47,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
@@ -481,5 +484,17 @@ class CreditSaleServiceTest {
         assertThatThrownBy(() -> creditSaleService.deliveryNote(1L))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(deliveryNoteGenerator, never()).generate(any());
+    }
+
+    @Test
+    @DisplayName("search combine le filtre de l'organisation courante")
+    void searchCombinesCurrentOrganizationFilter() {
+        when(currentShopContext.accessibleShopIds()).thenReturn(List.of(1L));
+        when(currentShopContext.currentOrganizationId()).thenReturn(100L);
+        when(saleRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(Page.empty());
+
+        creditSaleService.search(null, null, null, Pageable.unpaged());
+
+        verify(currentShopContext).currentOrganizationId();
     }
 }
