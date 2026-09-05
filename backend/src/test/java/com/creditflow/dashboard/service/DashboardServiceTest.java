@@ -71,10 +71,12 @@ class DashboardServiceTest {
         when(paymentRepository.countBetweenForShops(any(), any(), any())).thenReturn(0L);
         when(installmentService.upcomingForShops(anyInt(), any())).thenReturn(List.of());
         when(lateCustomerService.lateCustomers(any())).thenReturn(List.of());
-        when(installmentRepository.countLateForShops(any(), any())).thenReturn(0L);
-        when(installmentRepository.sumLateAmountForShops(any(), any())).thenReturn(BigDecimal.ZERO);
+        when(installmentRepository.countLateForShops(any(), any(), any())).thenReturn(0L);
+        when(installmentRepository.sumLateAmountForShops(any(), any(), any())).thenReturn(BigDecimal.ZERO);
         when(saleRepository.countByStatusAndShop_IdIn(any(SaleStatus.class), any())).thenReturn(0L);
-        when(saleRepository.sumRemainingByStatusForShops(any(SaleStatus.class), any())).thenReturn(BigDecimal.ZERO);
+        when(saleRepository.sumRemainingByStatusForShops(any(SaleStatus.class), any(), any()))
+                .thenReturn(BigDecimal.ZERO);
+        when(currentShopContext.currentOrganizationId()).thenReturn(100L);
     }
 
     @Test
@@ -91,12 +93,12 @@ class DashboardServiceTest {
         verify(saleRepository).countByShop_IdIn(List.of(1L));
         verify(saleRepository).countByStatusAndShop_IdIn(SaleStatus.ACTIVE, List.of(1L));
         verify(saleRepository).countByStatusAndShop_IdIn(SaleStatus.COMPLETED, List.of(1L));
-        verify(saleRepository).sumRemainingByStatusForShops(SaleStatus.ACTIVE, List.of(1L));
+        verify(saleRepository).sumRemainingByStatusForShops(SaleStatus.ACTIVE, List.of(1L), 100L);
         verify(paymentRepository).findBetweenForShops(any(), any(), eq(List.of(1L)));
         verify(installmentService).upcomingForShops(anyInt(), eq(List.of(1L)));
         verify(lateCustomerService).lateCustomers(List.of(1L));
-        verify(installmentRepository).countLateForShops(any(), eq(List.of(1L)));
-        verify(installmentRepository).sumLateAmountForShops(any(), eq(List.of(1L)));
+        verify(installmentRepository).countLateForShops(any(), eq(List.of(1L)), eq(100L));
+        verify(installmentRepository).sumLateAmountForShops(any(), eq(List.of(1L)), eq(100L));
     }
 
     @Test
