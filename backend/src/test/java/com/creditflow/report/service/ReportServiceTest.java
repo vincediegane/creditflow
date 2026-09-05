@@ -77,6 +77,7 @@ class ReportServiceTest {
         when(userRepository.findAll()).thenReturn(List.of());
         when(installmentRepository.findLateForShops(any(), any())).thenReturn(List.of());
         when(currentShopContext.resolveReadFilter()).thenReturn(List.of(1L));
+        when(currentShopContext.currentOrganizationId()).thenReturn(200L);
 
         shop1 = Shop.builder().id(1L).name("Boutique principale").active(true).build();
         shop2 = Shop.builder().id(2L).name("Boutique annexe").active(true).build();
@@ -111,11 +112,12 @@ class ReportServiceTest {
     void dailyPayments_usesResolvedShopIds() {
         Payment payment = Payment.builder().id(1L).sale(saleShop1).amount(new BigDecimal("50000"))
                 .paymentDate(LocalDate.now()).method(PaymentMethod.CASH).build();
-        when(paymentRepository.findBetweenForShops(any(), any(), eq(List.of(1L)))).thenReturn(List.of(payment));
+        when(paymentRepository.findBetweenForShops(any(), any(), eq(List.of(1L)), eq(200L)))
+                .thenReturn(List.of(payment));
 
         ReportData data = reportService.build(ReportType.DAILY_PAYMENTS, null, null, null, null, null);
 
-        verify(paymentRepository).findBetweenForShops(any(), any(), eq(List.of(1L)));
+        verify(paymentRepository).findBetweenForShops(any(), any(), eq(List.of(1L)), eq(200L));
         assertThat(data.rows()).hasSize(1);
     }
 
@@ -123,11 +125,12 @@ class ReportServiceTest {
     @DisplayName("MONTHLY_PAYMENTS interroge les paiements avec le resultat de resolveReadFilter()")
     void monthlyPayments_usesResolvedShopIds() {
         when(currentShopContext.resolveReadFilter()).thenReturn(List.of(1L, 2L));
-        when(paymentRepository.findBetweenForShops(any(), any(), eq(List.of(1L, 2L)))).thenReturn(List.of());
+        when(paymentRepository.findBetweenForShops(any(), any(), eq(List.of(1L, 2L)), eq(200L)))
+                .thenReturn(List.of());
 
         reportService.build(ReportType.MONTHLY_PAYMENTS, null, null, null, null, null);
 
-        verify(paymentRepository).findBetweenForShops(any(), any(), eq(List.of(1L, 2L)));
+        verify(paymentRepository).findBetweenForShops(any(), any(), eq(List.of(1L, 2L)), eq(200L));
     }
 
     @Test
