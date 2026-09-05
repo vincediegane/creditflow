@@ -43,8 +43,8 @@ docker compose up -d --build
 ```
 
 Le profil `prod` **refuse de démarrer** tant qu'un secret de livraison subsiste
-(`JWT_SECRET`, `ADMIN_PASSWORD`, `DB_PASSWORD`) ou que `DEMO_SEED` vaut `true`.
-Le message d'erreur indique précisément quoi corriger.
+(`JWT_SECRET`, `ADMIN_PASSWORD`, `DB_APP_PASSWORD`, `DB_MIGRATION_PASSWORD`) ou que `DEMO_SEED`
+vaut `true`. Le message d'erreur indique précisément quoi corriger.
 
 À la première connexion, le commerçant doit choisir son propre mot de passe : l'installateur
 ne conserve donc aucun accès.
@@ -291,4 +291,35 @@ python docs/generate_presentations.py
 ## Sécurité
 
 Avant une mise en production, modifiez impérativement dans `.env` :
-`JWT_SECRET` (32 caractères minimum), `ADMIN_PASSWORD` et `DB_PASSWORD`.
+`JWT_SECRET` (32 caractères minimum), `ADMIN_PASSWORD`, `DB_APP_PASSWORD` (rôle applicatif
+restreint utilisé par le backend) et `DB_MIGRATION_PASSWORD` (rôle de migration Flyway,
+propriétaire des tables).
+
+### Isolation Postgres par organisation (Row-Level Security, #40)
+
+En plus du filtrage applicatif, la base impose une isolation multi-tenant au niveau Postgres
+(Row-Level Security) : le backend se connecte avec un rôle dédié restreint (`creditflow_app`,
+non superuser, non propriétaire des tables), et chaque requête ne voit que les données de
+l'organisation courante, même en cas d'oubli d'un filtre côté code.
+
+#### Mise à niveau vers le rôle applicatif restreint (#40) — instances déjà déployées
+
+Sur une instance Docker Compose déjà lancée, le script `docker-entrypoint-initdb.d` ne se
+rejoue pas automatiquement (il ne s'exécute qu'à la toute première initialisation du volume
+Postgres). Avant de mettre à jour vers cette version :
+
+1. Se connecter en superuser : `docker compose exec db psql -U <DB_USERNAME actuel> -d <DB_NAME>`
+2. Exécuter :
+   ```sql
+   CREATE ROLE creditflow_app LOGIN PASSWORD '<mot de passe choisi>';
+   GRANT CONNECT ON DATABASE <DB_NAME> TO creditflow_app;
+   GRANT USAGE ON SCHEMA public TO creditflow_app;
+   ```
+3. Dans `.env` : renommez `DB_USERNAME`/`DB_PASSWORD` actuels en `DB_MIGRATION_USERNAME`/
+   `DB_MIGRATION_PASSWORD`, ajoutez `DB_APP_USERNAME=creditflow_app` et
+   `DB_APP_PASSWORD=<le mot de passe choisi à l'étape 2>`.
+4. `docker compose up -d --build` (Flyway applique les migrations avec les identifiants de
+   migration ; le backend démarre ensuite avec les identifiants applicatifs restreints).
+
+Sans l'étape 2, le démarrage échoue au moment de la migration `V16__app_role_grants.sql`
+(`GRANT ... TO creditflow_app` sur un rôle inexistant).
