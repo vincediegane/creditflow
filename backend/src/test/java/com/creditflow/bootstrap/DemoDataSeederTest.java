@@ -5,6 +5,8 @@ import com.creditflow.config.AppProperties;
 import com.creditflow.customer.dto.CustomerRequest;
 import com.creditflow.customer.repository.CustomerRepository;
 import com.creditflow.customer.service.CustomerService;
+import com.creditflow.organization.domain.Organization;
+import com.creditflow.organization.repository.OrganizationRepository;
 import com.creditflow.payment.service.PaymentService;
 import com.creditflow.product.service.ProductService;
 import com.creditflow.sale.service.CreditSaleService;
@@ -43,6 +45,9 @@ class DemoDataSeederTest {
     private ShopRepository shopRepository;
 
     @Mock
+    private OrganizationRepository organizationRepository;
+
+    @Mock
     private CustomerService customerService;
 
     @Mock
@@ -61,11 +66,13 @@ class DemoDataSeederTest {
     @BeforeEach
     void setUp() {
         properties.getAdmin().setUsername("admin");
-        runner = new DemoDataSeeder(properties, customerRepository, shopRepository, customerService,
-                productService, creditSaleService, paymentService).seedDemoData();
+        runner = new DemoDataSeeder(properties, customerRepository, shopRepository, organizationRepository,
+                customerService, productService, creditSaleService, paymentService).seedDemoData();
         when(customerRepository.count()).thenReturn(0L);
         when(shopRepository.findAllByActiveTrueOrderByNameAsc())
                 .thenReturn(List.of(Shop.builder().id(1L).name("Boutique principale").active(true).build()));
+        when(organizationRepository.findFirstByOrderByIdAsc())
+                .thenReturn(java.util.Optional.of(Organization.builder().id(1L).name("Organisation par defaut").build()));
     }
 
     @AfterEach

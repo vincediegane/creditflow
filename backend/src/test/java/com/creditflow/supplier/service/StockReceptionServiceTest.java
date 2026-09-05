@@ -90,8 +90,8 @@ class StockReceptionServiceTest {
     void setUp() {
         productService = new ProductService(productRepository, productMapper, auditLogService,
                 stockMovementRepository, currentShopContext, shopRepository);
-        stockReceptionService = new StockReceptionService(
-                stockReceptionRepository, stockReceptionMapper, supplierService, productService, currentShopContext);
+        stockReceptionService = new StockReceptionService(stockReceptionRepository, stockReceptionMapper,
+                supplierService, productService, currentShopContext, shopRepository);
 
         shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
         otherShop = Shop.builder().id(2L).name("Autre boutique").active(true).build();
@@ -103,6 +103,7 @@ class StockReceptionServiceTest {
         when(currentShopContext.accessibleShopIds()).thenReturn(List.of(1L));
         when(currentShopContext.shopIdForCreation()).thenReturn(1L);
         when(supplierService.getEntity(1L)).thenReturn(supplier);
+        when(shopRepository.getReferenceById(1L)).thenReturn(shop);
         when(productRepository.findById(1L)).thenReturn(Optional.of(phone));
         when(productRepository.findById(2L)).thenReturn(Optional.of(laptop));
         when(productRepository.save(any(Product.class))).thenAnswer(i -> i.getArgument(0));
@@ -126,6 +127,7 @@ class StockReceptionServiceTest {
         verify(stockReceptionRepository).save(captor.capture());
         assertThat(captor.getValue().getLines()).hasSize(2);
         assertThat(captor.getValue().getSupplier()).isEqualTo(supplier);
+        assertThat(captor.getValue().getShop()).isEqualTo(shop);
     }
 
     @Test

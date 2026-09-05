@@ -1,6 +1,7 @@
 package com.creditflow.supplier.domain;
 
 import com.creditflow.common.domain.Auditable;
+import com.creditflow.shop.domain.Shop;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -38,6 +39,10 @@ public class StockReception extends Auditable {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "supplier_id", nullable = false)
     private Supplier supplier;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "shop_id", nullable = false)
+    private Shop shop;
 
     @Column(name = "received_at", nullable = false)
     private LocalDate receivedAt;

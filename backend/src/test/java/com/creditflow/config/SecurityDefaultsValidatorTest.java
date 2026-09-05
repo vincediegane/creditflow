@@ -23,31 +23,36 @@ class SecurityDefaultsValidatorTest {
         return properties;
     }
 
-    private SecurityDefaultsValidator validator(AppProperties properties, String dbPassword) {
+    private SecurityDefaultsValidator validator(
+            AppProperties properties, String appDbPassword, String migrationDbPassword) {
         SecurityDefaultsValidator validator = new SecurityDefaultsValidator(properties);
-        ReflectionTestUtils.setField(validator, "databasePassword", dbPassword);
+        ReflectionTestUtils.setField(validator, "appDatabasePassword", appDbPassword);
+        ReflectionTestUtils.setField(validator, "migrationDatabasePassword", migrationDbPassword);
         return validator;
     }
 
     @Test
     @DisplayName("en production, refuse de demarrer avec les secrets de livraison")
     void refusesShippedSecretsInStrictMode() {
-        SecurityDefaultsValidator validator =
-                validator(properties(true), SecurityDefaultsValidator.DEFAULT_DB_PASSWORD);
+        SecurityDefaultsValidator validator = validator(properties(true),
+                SecurityDefaultsValidator.DEFAULT_APP_DB_PASSWORD,
+                SecurityDefaultsValidator.DEFAULT_DB_PASSWORD);
 
         assertThatThrownBy(validator::validate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("JWT_SECRET")
                 .hasMessageContaining("ADMIN_PASSWORD")
-                .hasMessageContaining("DB_PASSWORD")
+                .hasMessageContaining("DB_APP_PASSWORD")
+                .hasMessageContaining("DB_MIGRATION_PASSWORD")
                 .hasMessageContaining("DEMO_SEED");
     }
 
     @Test
     @DisplayName("en demonstration, tolere les secrets par defaut")
     void allowsDefaultsInDemoMode() {
-        SecurityDefaultsValidator validator =
-                validator(properties(false), SecurityDefaultsValidator.DEFAULT_DB_PASSWORD);
+        SecurityDefaultsValidator validator = validator(properties(false),
+                SecurityDefaultsValidator.DEFAULT_APP_DB_PASSWORD,
+                SecurityDefaultsValidator.DEFAULT_DB_PASSWORD);
 
         assertThatCode(validator::validate).doesNotThrowAnyException();
     }
@@ -60,7 +65,8 @@ class SecurityDefaultsValidatorTest {
         properties.getAdmin().setPassword("MotDePasseSolide2026");
         properties.getDemo().setSeed(false);
 
-        SecurityDefaultsValidator validator = validator(properties, "un-mot-de-passe-base-solide");
+        SecurityDefaultsValidator validator = validator(
+                properties, "un-mot-de-passe-app-solide", "un-mot-de-passe-migration-solide");
 
         assertThatCode(validator::validate).doesNotThrowAnyException();
     }
@@ -73,7 +79,8 @@ class SecurityDefaultsValidatorTest {
         properties.getAdmin().setPassword("MotDePasseSolide2026");
         properties.getDemo().setSeed(false);
 
-        SecurityDefaultsValidator validator = validator(properties, "un-mot-de-passe-base-solide");
+        SecurityDefaultsValidator validator = validator(
+                properties, "un-mot-de-passe-app-solide", "un-mot-de-passe-migration-solide");
 
         assertThatThrownBy(validator::validate)
                 .isInstanceOf(IllegalStateException.class)
@@ -88,10 +95,27 @@ class SecurityDefaultsValidatorTest {
         properties.getAdmin().setPassword("court");
         properties.getDemo().setSeed(false);
 
-        SecurityDefaultsValidator validator = validator(properties, "un-mot-de-passe-base-solide");
+        SecurityDefaultsValidator validator = validator(
+                properties, "un-mot-de-passe-app-solide", "un-mot-de-passe-migration-solide");
 
         assertThatThrownBy(validator::validate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("ADMIN_PASSWORD");
+    }
+
+    @Test
+    @DisplayName("en production, refuse un mot de passe applicatif de livraison meme si la migration est durcie")
+    void refusesShippedAppPasswordEvenWithHardenedMigrationPassword() {
+        AppProperties properties = properties(true);
+        properties.getSecurity().getJwt().setSecret("une-cle-de-production-vraiment-longue-42-chars");
+        properties.getAdmin().setPassword("MotDePasseSolide2026");
+        properties.getDemo().setSeed(false);
+
+        SecurityDefaultsValidator validator = validator(properties,
+                SecurityDefaultsValidator.DEFAULT_APP_DB_PASSWORD, "un-mot-de-passe-migration-solide");
+
+        assertThatThrownBy(validator::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("DB_APP_PASSWORD");
     }
 }
