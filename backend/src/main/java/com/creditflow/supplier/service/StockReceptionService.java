@@ -41,7 +41,9 @@ public class StockReceptionService {
     public PageResponse<StockReceptionResponse> search(Long supplierId, Pageable pageable) {
         Page<StockReception> page = stockReceptionRepository.findAll(
                 Specs.combine(StockReceptionSpecifications.forSupplier(supplierId),
-                        StockReceptionSpecifications.inShops(currentShopContext.accessibleShopIds())), pageable);
+                        StockReceptionSpecifications.inShops(currentShopContext.accessibleShopIds()),
+                        StockReceptionSpecifications.inOrganization(currentShopContext.currentOrganizationId())),
+                pageable);
         return PageResponse.of(page, stockReceptionMapper::toResponse);
     }
 
