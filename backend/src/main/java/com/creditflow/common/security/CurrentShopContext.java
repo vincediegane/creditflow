@@ -10,6 +10,7 @@ import com.creditflow.shop.dto.ShopSummary;
 import com.creditflow.shop.repository.ShopRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -53,6 +54,20 @@ public class CurrentShopContext {
     /** Meme regle de resolution, pour un utilisateur deja charge (connexion : le SecurityContext n'est pas encore peuple). */
     public List<ShopSummary> accessibleShops(User user) {
         return accessibleShopsOf(user).stream().map(s -> new ShopSummary(s.getId(), s.getName())).toList();
+    }
+
+    /**
+     * Recharge l'utilisateur par nom et force l'initialisation de sa collection de
+     * boutiques dans la session courante, avant que la transaction ne se ferme.
+     * Utilise exclusivement par AuthService.login(), seul appelant qui a besoin
+     * d'une session ouverte APRES resolution du tenant (voir design #40).
+     */
+    @Transactional(readOnly = true)
+    public User reloadWithShopsInitialized(String username) {
+        User user = userRepository.findByUsernameIgnoreCase(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+        org.hibernate.Hibernate.initialize(user.getShops());
+        return user;
     }
 
     private List<Shop> accessibleShopsOf(User user) {

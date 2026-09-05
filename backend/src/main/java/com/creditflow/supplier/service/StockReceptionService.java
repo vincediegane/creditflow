@@ -8,6 +8,7 @@ import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.product.domain.Product;
 import com.creditflow.product.domain.StockSourceType;
 import com.creditflow.product.service.ProductService;
+import com.creditflow.shop.repository.ShopRepository;
 import com.creditflow.supplier.domain.StockReception;
 import com.creditflow.supplier.domain.StockReceptionLine;
 import com.creditflow.supplier.domain.Supplier;
@@ -36,6 +37,7 @@ public class StockReceptionService {
     private final SupplierService supplierService;
     private final ProductService productService;
     private final CurrentShopContext currentShopContext;
+    private final ShopRepository shopRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<StockReceptionResponse> search(Long supplierId, Pageable pageable) {
@@ -66,6 +68,7 @@ public class StockReceptionService {
 
         StockReception reception = StockReception.builder()
                 .supplier(supplier)
+                .shop(shopRepository.getReferenceById(targetShopId))
                 .receivedAt(request.receivedAt())
                 .notes(request.notes())
                 .build();
