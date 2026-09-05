@@ -102,6 +102,7 @@ class StockReceptionServiceTest {
 
         when(currentShopContext.accessibleShopIds()).thenReturn(List.of(1L));
         when(currentShopContext.shopIdForCreation()).thenReturn(1L);
+        when(currentShopContext.currentOrganizationId()).thenReturn(1L);
         when(supplierService.getEntity(1L)).thenReturn(supplier);
         when(productRepository.findById(1L)).thenReturn(Optional.of(phone));
         when(productRepository.findById(2L)).thenReturn(Optional.of(laptop));
@@ -157,14 +158,15 @@ class StockReceptionServiceTest {
     }
 
     @Test
-    @DisplayName("la liste des receptions est restreinte aux boutiques accessibles")
-    void search_filtersOnAccessibleShops() {
+    @DisplayName("la liste des receptions est restreinte aux boutiques accessibles et a l'organisation courante")
+    void search_filtersOnAccessibleShopsAndOrganization() {
         when(stockReceptionRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(Page.empty());
 
         stockReceptionService.search(null, PageRequest.of(0, 20));
 
         verify(currentShopContext).accessibleShopIds();
+        verify(currentShopContext).currentOrganizationId();
         ArgumentCaptor<Specification<StockReception>> captor = ArgumentCaptor.forClass(Specification.class);
         verify(stockReceptionRepository).findAll(captor.capture(), any(Pageable.class));
         assertThat(captor.getValue()).isNotNull();

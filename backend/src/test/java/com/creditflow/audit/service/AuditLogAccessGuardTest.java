@@ -62,4 +62,13 @@ class AuditLogAccessGuardTest {
 
         verifyNoInteractions(customerService, productService, creditSaleService);
     }
+
+    @Test
+    @DisplayName("refuse le type STOCK_RECEPTION, non audite (couvert par le chemin par defaut)")
+    void rejectsStockReceptionEntityType() {
+        assertThatThrownBy(() -> auditLogAccessGuard.assertReadable("STOCK_RECEPTION", 1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verifyNoInteractions(customerService, productService, creditSaleService);
+    }
 }

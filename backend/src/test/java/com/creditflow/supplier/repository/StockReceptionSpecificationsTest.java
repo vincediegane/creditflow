@@ -66,4 +66,51 @@ class StockReceptionSpecificationsTest {
         verify(subquery).select(idPath);
         verify(subquery).where(sameReception, shopPredicate);
     }
+
+    @Test
+    @DisplayName("inOrganization ne genere aucun predicat pour un id nul")
+    void inOrganizationReturnsNullWhenNull() {
+        assertThat(StockReceptionSpecifications.inOrganization(null)).isNull();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Test
+    @DisplayName("inOrganization ne retient que les receptions dont les lignes portent un produit de l'organisation")
+    void inOrganizationFiltersOnLineProductShopOrganization() {
+        Root<StockReception> root = mock(Root.class);
+        CriteriaQuery<?> query = mock(CriteriaQuery.class);
+        CriteriaBuilder cb = mock(CriteriaBuilder.class);
+        Subquery<Long> subquery = mock(Subquery.class);
+        Root<StockReceptionLine> lineRoot = mock(Root.class);
+        Path idPath = mock(Path.class);
+        Path receptionPath = mock(Path.class);
+        Path productPath = mock(Path.class);
+        Path shopPath = mock(Path.class);
+        Path organizationPath = mock(Path.class);
+        Path organizationIdPath = mock(Path.class);
+        Predicate sameReception = mock(Predicate.class);
+        Predicate organizationPredicate = mock(Predicate.class);
+        Predicate exists = mock(Predicate.class);
+
+        when(query.subquery(Long.class)).thenReturn((Subquery) subquery);
+        when(subquery.from(StockReceptionLine.class)).thenReturn(lineRoot);
+        when(lineRoot.get("id")).thenReturn(idPath);
+        when(lineRoot.get("reception")).thenReturn(receptionPath);
+        when(lineRoot.get("product")).thenReturn(productPath);
+        when(productPath.get("shop")).thenReturn(shopPath);
+        when(shopPath.get("organization")).thenReturn(organizationPath);
+        when(organizationPath.get("id")).thenReturn(organizationIdPath);
+        when(cb.equal(receptionPath, root)).thenReturn(sameReception);
+        when(cb.equal(organizationIdPath, 1L)).thenReturn(organizationPredicate);
+        when(cb.exists(subquery)).thenReturn(exists);
+
+        Specification<StockReception> specification = StockReceptionSpecifications.inOrganization(1L);
+        assertThat(specification).isNotNull();
+
+        Predicate result = specification.toPredicate(root, query, cb);
+
+        assertThat(result).isEqualTo(exists);
+        verify(subquery).select(idPath);
+        verify(subquery).where(sameReception, organizationPredicate);
+    }
 }
