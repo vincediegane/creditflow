@@ -51,15 +51,16 @@ public class ReportService {
     public ReportData build(ReportType type, LocalDate from, LocalDate to,
                              String profession, BigDecimal minAmount, BigDecimal maxAmount) {
         List<Long> shopIds = currentShopContext.resolveReadFilter();
+        Long organizationId = currentShopContext.currentOrganizationId();
         return switch (type) {
             case DAILY_PAYMENTS -> payments(ReportType.DAILY_PAYMENTS, "Paiements du jour",
-                    defaultDate(from), defaultDate(from), shopIds);
+                    defaultDate(from), defaultDate(from), shopIds, organizationId);
             case MONTHLY_PAYMENTS -> {
                 LocalDate reference = defaultDate(from);
                 YearMonth month = YearMonth.from(reference);
                 yield payments(ReportType.MONTHLY_PAYMENTS, "Paiements du mois",
                         from == null ? month.atDay(1) : from,
-                        to == null ? month.atEndOfMonth() : to, shopIds);
+                        to == null ? month.atEndOfMonth() : to, shopIds, organizationId);
             }
             case LATE_CUSTOMERS -> lateCustomers(shopIds);
             case OUTSTANDING -> outstanding(shopIds);
@@ -68,8 +69,9 @@ public class ReportService {
         };
     }
 
-    private ReportData payments(ReportType type, String title, LocalDate from, LocalDate to, List<Long> shopIds) {
-        List<Payment> payments = paymentRepository.findBetweenForShops(from, to, shopIds);
+    private ReportData payments(ReportType type, String title, LocalDate from, LocalDate to,
+                                 List<Long> shopIds, Long organizationId) {
+        List<Payment> payments = paymentRepository.findBetweenForShops(from, to, shopIds, organizationId);
 
         List<List<Object>> rows = payments.stream()
                 .map(p -> List.<Object>of(
