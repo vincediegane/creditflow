@@ -5,6 +5,7 @@ import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.config.AppProperties;
 import com.creditflow.organization.domain.Organization;
 import com.creditflow.organization.repository.OrganizationRepository;
+import com.creditflow.organization.service.OrganizationPlanResolver;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.dto.ShopRequest;
 import com.creditflow.shop.mapper.ShopMapper;
@@ -45,12 +46,14 @@ class ShopServiceTest {
     @Mock
     private OrganizationRepository organizationRepository;
 
+    @Mock
+    private OrganizationPlanResolver organizationPlanResolver;
+
     @InjectMocks
     private ShopService shopService;
 
     @BeforeEach
     void setUp() {
-        when(properties.getPlan()).thenReturn(new AppProperties.Plan());
         when(organizationRepository.findFirstByOrderByIdAsc())
                 .thenReturn(Optional.of(Organization.builder().id(1L).name("Organisation par defaut").build()));
     }
@@ -114,7 +117,8 @@ class ShopServiceTest {
     @Test
     @DisplayName("autorise le nom courant lors d'une modification")
     void allowsSameNameOnUpdate() {
-        Shop existing = Shop.builder().id(1L).name("Boutique Centre-ville").active(true).build();
+        Shop existing = Shop.builder().id(1L).name("Boutique Centre-ville").active(true)
+                .organization(Organization.builder().id(1L).build()).build();
         when(shopRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(shopRepository.existsByNameIgnoreCaseAndIdNot("Boutique Centre-ville", 1L)).thenReturn(false);
         when(shopRepository.save(any(Shop.class))).thenAnswer(i -> i.getArgument(0));
@@ -128,7 +132,7 @@ class ShopServiceTest {
     @Test
     @DisplayName("refuse la creation d'une seconde boutique active quand le plan est mono-boutique")
     void rejectsSecondActiveShopWhenPlanIsSingleShopOnCreate() {
-        when(properties.getPlan()).thenReturn(singleShopPlan());
+        when(organizationPlanResolver.multiShopEnabled(1L)).thenReturn(false);
         when(shopRepository.countByActiveTrue()).thenReturn(1L);
 
         assertThatThrownBy(() -> shopService.create(request()))
@@ -141,8 +145,9 @@ class ShopServiceTest {
     @Test
     @DisplayName("refuse la reactivation d'une seconde boutique quand le plan est mono-boutique")
     void rejectsReactivationOfSecondShopWhenPlanIsSingleShop() {
-        Shop existing = Shop.builder().id(1L).name("Boutique Centre-ville").active(false).build();
-        when(properties.getPlan()).thenReturn(singleShopPlan());
+        Shop existing = Shop.builder().id(1L).name("Boutique Centre-ville").active(false)
+                .organization(Organization.builder().id(1L).build()).build();
+        when(organizationPlanResolver.multiShopEnabled(1L)).thenReturn(false);
         when(shopRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(shopRepository.existsByActiveTrueAndIdNot(1L)).thenReturn(true);
 
@@ -158,6 +163,7 @@ class ShopServiceTest {
     void allowsSecondActiveShopWhenPlanIsMultiShop() {
         Shop entity = Shop.builder().name("Boutique Centre-ville").address("Dakar")
                 .phone("770000002").active(true).build();
+        when(organizationPlanResolver.multiShopEnabled(1L)).thenReturn(true);
         when(shopRepository.countByActiveTrue()).thenReturn(1L);
         when(shopMapper.toEntity(any(ShopRequest.class))).thenReturn(entity);
         when(shopRepository.save(any(Shop.class))).thenAnswer(i -> i.getArgument(0));
@@ -170,8 +176,9 @@ class ShopServiceTest {
     @Test
     @DisplayName("n'empeche jamais la mise a jour de l'unique boutique deja active, meme en plan mono-boutique")
     void allowsUpdateOfSingleAlreadyActiveShopEvenWithSingleShopPlan() {
-        Shop existing = Shop.builder().id(1L).name("Boutique Centre-ville").active(true).build();
-        when(properties.getPlan()).thenReturn(singleShopPlan());
+        Shop existing = Shop.builder().id(1L).name("Boutique Centre-ville").active(true)
+                .organization(Organization.builder().id(1L).build()).build();
+        when(organizationPlanResolver.multiShopEnabled(1L)).thenReturn(false);
         when(shopRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(shopRepository.existsByActiveTrueAndIdNot(1L)).thenReturn(false);
         when(shopRepository.save(any(Shop.class))).thenAnswer(i -> i.getArgument(0));
@@ -184,8 +191,9 @@ class ShopServiceTest {
     @Test
     @DisplayName("n'empeche jamais la simple mise a jour d'une boutique deja active sur une instance qui en a deja plusieurs")
     void allowsUpdateOfAlreadyActiveShopAmongMultipleEvenWithSingleShopPlan() {
-        Shop existing = Shop.builder().id(1L).name("Boutique Centre-ville").active(true).build();
-        when(properties.getPlan()).thenReturn(singleShopPlan());
+        Shop existing = Shop.builder().id(1L).name("Boutique Centre-ville").active(true)
+                .organization(Organization.builder().id(1L).build()).build();
+        when(organizationPlanResolver.multiShopEnabled(1L)).thenReturn(false);
         when(shopRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(shopRepository.existsByActiveTrueAndIdNot(1L)).thenReturn(true);
         when(shopRepository.save(any(Shop.class))).thenAnswer(i -> i.getArgument(0));
@@ -193,11 +201,5 @@ class ShopServiceTest {
         shopService.update(1L, request());
 
         verify(shopRepository).save(existing);
-    }
-
-    private static AppProperties.Plan singleShopPlan() {
-        AppProperties.Plan plan = new AppProperties.Plan();
-        plan.setMultiShop(false);
-        return plan;
     }
 }

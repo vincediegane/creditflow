@@ -187,6 +187,41 @@ class RowLevelSecurityIT {
         }
     }
 
+    @Test
+    @Order(4)
+    void organizationPlanRowsAreIsolatedPerOrganization() throws SQLException {
+        long organizationBId;
+        try (Connection admin = ownerConnection();
+             Statement statement = admin.createStatement()) {
+            organizationBId = singleLong(statement,
+                    "SELECT id FROM organizations WHERE name = 'Organisation B'");
+            statement.execute("INSERT INTO organization_plan (organization_id, multi_shop) "
+                    + "VALUES (" + organizationAId + ", false)");
+            statement.execute("INSERT INTO organization_plan (organization_id, multi_shop) "
+                    + "VALUES (" + organizationBId + ", true)");
+        }
+
+        try (Connection app = appConnection()) {
+            setCurrentOrgId(app, organizationAId);
+            assertThat(countRows(app, "SELECT * FROM organization_plan")).isEqualTo(1);
+            try (Statement statement = app.createStatement();
+                 ResultSet rs = statement.executeQuery(
+                         "SELECT multi_shop FROM organization_plan")) {
+                rs.next();
+                assertThat(rs.getBoolean("multi_shop")).isFalse();
+            }
+
+            setCurrentOrgId(app, organizationBId);
+            assertThat(countRows(app, "SELECT * FROM organization_plan")).isEqualTo(1);
+            try (Statement statement = app.createStatement();
+                 ResultSet rs = statement.executeQuery(
+                         "SELECT multi_shop FROM organization_plan")) {
+                rs.next();
+                assertThat(rs.getBoolean("multi_shop")).isTrue();
+            }
+        }
+    }
+
     private static Connection ownerConnection() throws SQLException {
         return DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
     }
