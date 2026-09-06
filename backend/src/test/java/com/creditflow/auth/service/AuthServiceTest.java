@@ -12,6 +12,7 @@ import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.config.AppProperties;
 import com.creditflow.organization.domain.Organization;
+import com.creditflow.organization.service.OrganizationPlanResolver;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.dto.ShopSummary;
 import com.creditflow.shop.repository.ShopRepository;
@@ -61,6 +62,9 @@ class AuthServiceTest {
     @Mock
     private AppProperties properties;
 
+    @Mock
+    private OrganizationPlanResolver organizationPlanResolver;
+
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     private AuthService authService;
@@ -70,7 +74,7 @@ class AuthServiceTest {
     void setUp() {
         when(properties.getPlan()).thenReturn(new AppProperties.Plan());
         authService = new AuthService(authenticationManager, userRepository, jwtService,
-                passwordEncoder, currentShopContext, properties);
+                passwordEncoder, currentShopContext, properties, organizationPlanResolver);
 
         user = User.builder()
                 .id(1L)
@@ -86,6 +90,7 @@ class AuthServiceTest {
         when(userRepository.findByUsernameIgnoreCase("admin")).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
         when(currentShopContext.reloadWithShopsInitialized("admin")).thenReturn(user);
+        when(organizationPlanResolver.multiShopEnabled(1L)).thenReturn(true);
     }
 
     @AfterEach
@@ -158,6 +163,18 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("la connexion reflete la formule multiShop specifique a l'organisation, pas le fallback d'instance")
+    void loginReflectsOrganizationOverrideOfMultiShop() {
+        when(organizationPlanResolver.multiShopEnabled(1L)).thenReturn(false);
+        when(jwtService.generateToken("admin", "ADMIN")).thenReturn("token");
+
+        AuthResponse response = authService.login(new LoginRequest("admin", "MotDePasseInitial1"));
+
+        assertThat(properties.getPlan().isMultiShop()).isTrue();
+        assertThat(response.plan().multiShop()).isFalse();
+    }
+
+    @Test
     @DisplayName("la connexion resout les boutiques sans dependre du SecurityContext (encore anonyme a ce stade)")
     void loginResolvesAccessibleShopsWhileStillAnonymous() {
         SecurityContextHolder.getContext().setAuthentication(new AnonymousAuthenticationToken(
@@ -167,7 +184,7 @@ class AuthServiceTest {
         when(shopRepository.findAllByActiveTrueAndOrganizationIdOrderByNameAsc(user.getOrganization().getId()))
                 .thenReturn(List.of(Shop.builder().id(1L).name("Boutique principale").active(true).build()));
         AuthService service = new AuthService(authenticationManager, userRepository, jwtService, passwordEncoder,
-                new CurrentShopContext(userRepository, shopRepository), properties);
+                new CurrentShopContext(userRepository, shopRepository), properties, organizationPlanResolver);
         when(jwtService.generateToken("admin", "ADMIN")).thenReturn("token");
 
         AuthResponse response = service.login(new LoginRequest("admin", "MotDePasseInitial1"));
