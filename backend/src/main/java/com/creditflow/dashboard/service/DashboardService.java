@@ -46,12 +46,14 @@ public class DashboardService {
     @Transactional(readOnly = true)
     public DashboardResponse overview() {
         List<Long> shopIds = currentShopContext.resolveReadFilter();
+        Long organizationId = currentShopContext.currentOrganizationId();
         LocalDate today = LocalDate.now();
         YearMonth month = YearMonth.from(today);
         LocalDate monthStart = month.atDay(1);
         LocalDate monthEnd = month.atEndOfMonth();
 
-        List<PaymentResponse> todayPayments = paymentRepository.findBetweenForShops(today, today, shopIds).stream()
+        List<PaymentResponse> todayPayments = paymentRepository.findBetweenForShops(today, today, shopIds, organizationId)
+                .stream()
                 .map(paymentMapper::toResponse)
                 .toList();
 
@@ -63,11 +65,10 @@ public class DashboardService {
                 saleRepository.countByShop_IdIn(shopIds),
                 saleRepository.countByStatusAndShop_IdIn(SaleStatus.ACTIVE, shopIds),
                 saleRepository.countByStatusAndShop_IdIn(SaleStatus.COMPLETED, shopIds),
-                saleRepository.sumRemainingByStatusForShops(SaleStatus.ACTIVE, shopIds,
-                        currentShopContext.currentOrganizationId()),
-                paymentRepository.sumBetweenForShops(monthStart, monthEnd, shopIds),
-                paymentRepository.sumBetweenForShops(today, today, shopIds),
-                paymentRepository.countBetweenForShops(today, today, shopIds),
+                saleRepository.sumRemainingByStatusForShops(SaleStatus.ACTIVE, shopIds, organizationId),
+                paymentRepository.sumBetweenForShops(monthStart, monthEnd, shopIds, organizationId),
+                paymentRepository.sumBetweenForShops(today, today, shopIds, organizationId),
+                paymentRepository.countBetweenForShops(today, today, shopIds, organizationId),
                 lateCustomers.size(),
                 installmentRepository.countLateForShops(today, shopIds, currentShopContext.currentOrganizationId()),
                 nullToZero(installmentRepository.sumLateAmountForShops(today, shopIds,

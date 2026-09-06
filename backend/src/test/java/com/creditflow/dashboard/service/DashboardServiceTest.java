@@ -66,9 +66,10 @@ class DashboardServiceTest {
         dashboardService = new DashboardService(customerRepository, saleRepository, installmentRepository,
                 paymentRepository, paymentMapper, installmentService, lateCustomerService, currentShopContext);
 
-        when(paymentRepository.findBetweenForShops(any(), any(), any())).thenReturn(List.of());
-        when(paymentRepository.sumBetweenForShops(any(), any(), any())).thenReturn(BigDecimal.ZERO);
-        when(paymentRepository.countBetweenForShops(any(), any(), any())).thenReturn(0L);
+        when(paymentRepository.findBetweenForShops(any(), any(), any(), any())).thenReturn(List.of());
+        when(paymentRepository.sumBetweenForShops(any(), any(), any(), any())).thenReturn(BigDecimal.ZERO);
+        when(paymentRepository.countBetweenForShops(any(), any(), any(), any())).thenReturn(0L);
+        when(currentShopContext.currentOrganizationId()).thenReturn(100L);
         when(installmentService.upcomingForShops(anyInt(), any())).thenReturn(List.of());
         when(lateCustomerService.lateCustomers(any())).thenReturn(List.of());
         when(installmentRepository.countLateForShops(any(), any(), any())).thenReturn(0L);
@@ -76,7 +77,6 @@ class DashboardServiceTest {
         when(saleRepository.countByStatusAndShop_IdIn(any(SaleStatus.class), any())).thenReturn(0L);
         when(saleRepository.sumRemainingByStatusForShops(any(SaleStatus.class), any(), any()))
                 .thenReturn(BigDecimal.ZERO);
-        when(currentShopContext.currentOrganizationId()).thenReturn(100L);
     }
 
     @Test
@@ -94,7 +94,7 @@ class DashboardServiceTest {
         verify(saleRepository).countByStatusAndShop_IdIn(SaleStatus.ACTIVE, List.of(1L));
         verify(saleRepository).countByStatusAndShop_IdIn(SaleStatus.COMPLETED, List.of(1L));
         verify(saleRepository).sumRemainingByStatusForShops(SaleStatus.ACTIVE, List.of(1L), 100L);
-        verify(paymentRepository).findBetweenForShops(any(), any(), eq(List.of(1L)));
+        verify(paymentRepository).findBetweenForShops(any(), any(), eq(List.of(1L)), eq(100L));
         verify(installmentService).upcomingForShops(anyInt(), eq(List.of(1L)));
         verify(lateCustomerService).lateCustomers(List.of(1L));
         verify(installmentRepository).countLateForShops(any(), eq(List.of(1L)), eq(100L));

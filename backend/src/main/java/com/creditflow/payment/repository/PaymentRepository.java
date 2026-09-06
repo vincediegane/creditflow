@@ -23,6 +23,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long>,
     @EntityGraph(attributePaths = {"sale", "sale.customer", "sale.product"})
     Page<Payment> findAll(Specification<Payment> specification, Pageable pageable);
 
+    /**
+     * Aucun filtre organisation direct : l'appelant doit garantir l'accès au contrat
+     * en amont (voir PaymentService.findBySale / CreditSaleService.findDetail / delete).
+     */
     @Query("""
             SELECT p FROM Payment p
             JOIN FETCH p.sale s
@@ -33,6 +37,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long>,
             """)
     List<Payment> findBySale(@Param("saleId") Long saleId);
 
+    /**
+     * Aucun filtre organisation direct : l'appelant doit garantir l'accès au client
+     * en amont (voir PaymentService.findByCustomer / CustomerProfileService.profile).
+     */
     @Query("""
             SELECT p FROM Payment p
             JOIN FETCH p.sale s
@@ -50,27 +58,45 @@ public interface PaymentRepository extends JpaRepository<Payment, Long>,
             JOIN FETCH s.product
             WHERE p.paymentDate BETWEEN :from AND :to
               AND s.shop.id IN :shopIds
+              AND s.shop.organization.id = :organizationId
             ORDER BY p.paymentDate DESC, p.id DESC
             """)
     List<Payment> findBetweenForShops(@Param("from") LocalDate from, @Param("to") LocalDate to,
-                                       @Param("shopIds") List<Long> shopIds);
+                                       @Param("shopIds") List<Long> shopIds,
+                                       @Param("organizationId") Long organizationId);
 
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p "
-            + "WHERE p.paymentDate BETWEEN :from AND :to AND p.sale.shop.id IN :shopIds")
+            + "WHERE p.paymentDate BETWEEN :from AND :to AND p.sale.shop.id IN :shopIds "
+            + "AND p.sale.shop.organization.id = :organizationId")
     BigDecimal sumBetweenForShops(@Param("from") LocalDate from, @Param("to") LocalDate to,
-                                   @Param("shopIds") List<Long> shopIds);
+                                   @Param("shopIds") List<Long> shopIds,
+                                   @Param("organizationId") Long organizationId);
 
     @Query("SELECT COUNT(p) FROM Payment p "
-            + "WHERE p.paymentDate BETWEEN :from AND :to AND p.sale.shop.id IN :shopIds")
+            + "WHERE p.paymentDate BETWEEN :from AND :to AND p.sale.shop.id IN :shopIds "
+            + "AND p.sale.shop.organization.id = :organizationId")
     long countBetweenForShops(@Param("from") LocalDate from, @Param("to") LocalDate to,
-                               @Param("shopIds") List<Long> shopIds);
+                               @Param("shopIds") List<Long> shopIds,
+                               @Param("organizationId") Long organizationId);
 
+    /**
+     * Aucun filtre organisation direct : l'appelant doit garantir l'accès au client
+     * en amont (voir PaymentService.findByCustomer / CustomerProfileService.profile).
+     */
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.sale.customer.id = :customerId")
     BigDecimal sumByCustomer(@Param("customerId") Long customerId);
 
+    /**
+     * Aucun filtre organisation direct : appelée uniquement après un assertAccessible
+     * déjà exécuté dans PaymentService.delete.
+     */
     List<Payment> findBySaleIdOrderByPaymentDateAscIdAsc(Long saleId);
 
-    /** Court-circuit d'idempotence : les JOIN FETCH evitent 4 requetes lazy par rejeu. */
+    /**
+     * Court-circuit d'idempotence : les JOIN FETCH evitent 4 requetes lazy par rejeu.
+     * Aucun filtre organisation direct : protégée par un assertAccessible juste
+     * après lecture dans PaymentService.register.
+     */
     @Query("""
             SELECT p FROM Payment p
             JOIN FETCH p.sale s

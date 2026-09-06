@@ -37,6 +37,9 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -235,6 +238,19 @@ class PaymentServiceTest {
         paymentService.delete(9L);
 
         assertThat(first.getPenaltyPaid()).isEqualByComparingTo("2000");
+    }
+
+    @Test
+    @DisplayName("search combine le filtre organisation avec les autres criteres")
+    void search_combinesOrganizationFilter() {
+        when(currentShopContext.accessibleShopIds()).thenReturn(List.of(1L));
+        when(currentShopContext.currentOrganizationId()).thenReturn(10L);
+        when(paymentRepository.findAll(any(Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(Page.empty());
+
+        paymentService.search(null, null, null, null, null, PageRequest.of(0, 10));
+
+        verify(currentShopContext).currentOrganizationId();
     }
 
     @Test

@@ -66,7 +66,8 @@ public class PaymentService {
                         PaymentSpecifications.paidFrom(from),
                         PaymentSpecifications.paidTo(to),
                         PaymentSpecifications.forCustomer(customerId),
-                        PaymentSpecifications.inShops(currentShopContext.accessibleShopIds())),
+                        PaymentSpecifications.inShops(currentShopContext.accessibleShopIds()),
+                        PaymentSpecifications.inOrganization(currentShopContext.currentOrganizationId())),
                 pageable);
         return PageResponse.of(page, paymentMapper::toResponse);
     }
@@ -79,11 +80,16 @@ public class PaymentService {
         return paymentMapper.toResponse(payment);
     }
 
+    /**
+     * Aucun filtre organisation direct ici : l'accès au client est déjà garanti par
+     * l'unique appelant, CustomerProfileService.profile (via customerService.findById).
+     */
     @Transactional(readOnly = true)
     public List<PaymentResponse> findByCustomer(Long customerId) {
         return paymentRepository.findByCustomer(customerId).stream().map(paymentMapper::toResponse).toList();
     }
 
+    /** L'accès au contrat est vérifié ici (assertAccessible) avant toute lecture des paiements. */
     @Transactional(readOnly = true)
     public List<PaymentResponse> findBySale(Long saleId) {
         CreditSale sale = saleRepository.findDetailById(saleId)
@@ -92,7 +98,7 @@ public class PaymentService {
         return paymentRepository.findBySale(saleId).stream().map(paymentMapper::toResponse).toList();
     }
 
-    /** Recu PDF remis au client : contenu et nom de fichier. */
+    /** Recu PDF remis au client : contenu et nom de fichier. L'accès au paiement est vérifié avant lecture. */
     @Transactional(readOnly = true)
     public Receipt receipt(Long paymentId) {
         Payment payment = paymentRepository.findById(paymentId)
@@ -112,6 +118,7 @@ public class PaymentService {
     public record RegistrationResult(PaymentResponse payment, boolean replayed) {
     }
 
+    /** Le rejeu idempotent (clientRequestId) est protégé par assertAccessible juste après lecture. */
     @Transactional
     public RegistrationResult register(PaymentRequest request) {
         String clientRequestId = blankToNull(request.clientRequestId());
@@ -180,7 +187,8 @@ public class PaymentService {
 
     /**
      * Annule un versement et recalcule integralement l'echeancier du contrat
-     * a partir des versements restants.
+     * a partir des versements restants. L'accès au contrat est vérifié (assertAccessible)
+     * avant toute suppression, y compris pour le rejeu via findBySaleIdOrderByPaymentDateAscIdAsc.
      */
     @Transactional
     public void delete(Long id) {
