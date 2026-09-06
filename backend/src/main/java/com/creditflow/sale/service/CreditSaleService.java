@@ -282,7 +282,7 @@ public class CreditSaleService {
                     });
         }
 
-        String fileUrl = documentStorage.store(file, "sales/" + saleId);
+        String fileUrl = documentStorage.store(file, "org-" + currentShopContext.currentOrganizationId() + "/sales/" + saleId);
         SaleAttachment attachment = saleAttachmentRepository.save(SaleAttachment.builder()
                 .sale(sale)
                 .type(type)
