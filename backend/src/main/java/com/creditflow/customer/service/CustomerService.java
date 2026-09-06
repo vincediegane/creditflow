@@ -133,7 +133,7 @@ public class CustomerService {
     public CustomerResponse uploadPhoto(Long id, MultipartFile file) {
         Customer customer = getEntity(id);
         String previous = customer.getPhotoUrl();
-        customer.setPhotoUrl(documentStorage.store(file, "customers"));
+        customer.setPhotoUrl(documentStorage.store(file, "org-" + currentShopContext.currentOrganizationId() + "/customers"));
         Customer saved = customerRepository.save(customer);
         documentStorage.delete(previous);
         return customerMapper.toResponse(saved);
