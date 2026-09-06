@@ -5,15 +5,18 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-creditflow}
-      POSTGRES_USER: ${DB_USERNAME:-creditflow}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-creditflow}
+      POSTGRES_USER: ${DB_MIGRATION_USERNAME:-creditflow}
+      POSTGRES_PASSWORD: ${DB_MIGRATION_PASSWORD:-creditflow}
+      DB_APP_USERNAME: ${DB_APP_USERNAME:-creditflow_app}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:-creditflow_app}
       TZ: ${TZ:-Africa/Dakar}
     volumes:
       - creditflow-db-data:/var/lib/postgresql/data
+      - ./db/init/01-create-app-role.sh:/docker-entrypoint-initdb.d/01-create-app-role.sh:ro
     ports:
       - '${DB_PORT:-5432}:5432'
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-creditflow} -d ${DB_NAME:-creditflow}']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_MIGRATION_USERNAME:-creditflow} -d ${DB_NAME:-creditflow}']
       interval: 10s
       timeout: 5s
       retries: 10
@@ -28,8 +31,10 @@ services:
         condition: service_healthy
     environment:
       DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-creditflow}
-      DB_USERNAME: ${DB_USERNAME:-creditflow}
-      DB_PASSWORD: ${DB_PASSWORD:-creditflow}
+      DB_USERNAME: ${DB_APP_USERNAME:-creditflow_app}
+      DB_PASSWORD: ${DB_APP_PASSWORD:-creditflow_app}
+      DB_MIGRATION_USERNAME: ${DB_MIGRATION_USERNAME:-creditflow}
+      DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:-creditflow}
       JWT_SECRET: ${JWT_SECRET:-creditflow-super-secret-key-change-me-in-production-0123456789}
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-720}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
@@ -90,8 +95,10 @@ services:
     environment:
       PGHOST: db
       PGDATABASE: ${DB_NAME:-creditflow}
-      PGUSER: ${DB_USERNAME:-creditflow}
-      PGPASSWORD: ${DB_PASSWORD:-creditflow}
+      # backup/restore doivent voir TOUTES les donnees (pas filtrees par RLS) :
+      # utiliser le role de migration/proprietaire, pas le role applicatif.
+      PGUSER: ${DB_MIGRATION_USERNAME:-creditflow}
+      PGPASSWORD: ${DB_MIGRATION_PASSWORD:-creditflow}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       TZ: ${TZ:-Africa/Dakar}

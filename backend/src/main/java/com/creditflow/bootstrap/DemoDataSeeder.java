@@ -1,11 +1,14 @@
 package com.creditflow.bootstrap;
 
 import com.creditflow.auth.domain.Role;
+import com.creditflow.common.security.TenantContext;
 import com.creditflow.config.AppProperties;
 import com.creditflow.customer.dto.CustomerRequest;
 import com.creditflow.customer.dto.CustomerResponse;
 import com.creditflow.customer.repository.CustomerRepository;
 import com.creditflow.customer.service.CustomerService;
+import com.creditflow.organization.domain.Organization;
+import com.creditflow.organization.repository.OrganizationRepository;
 import com.creditflow.payment.domain.PaymentMethod;
 import com.creditflow.payment.dto.PaymentRequest;
 import com.creditflow.payment.service.PaymentService;
@@ -52,6 +55,7 @@ public class DemoDataSeeder {
     private final AppProperties properties;
     private final CustomerRepository customerRepository;
     private final ShopRepository shopRepository;
+    private final OrganizationRepository organizationRepository;
     private final CustomerService customerService;
     private final ProductService productService;
     private final CreditSaleService creditSaleService;
@@ -87,6 +91,10 @@ public class DemoDataSeeder {
             // exige un utilisateur authentifie : le seeding s'execute sous l'identite technique
             // de l'administrateur cree par AdminInitializer (@Order(1)).
             authenticateAsAdmin();
+            Organization organization = organizationRepository.findFirstByOrderByIdAsc()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Aucune organisation par defaut trouvee : la migration V13 doit etre appliquee."));
+            TenantContext.set(organization.getId());
             try {
                 log.info("Generation des donnees de demonstration pour la boutique {}...", shops.get(0).getName());
                 List<CustomerResponse> customers = seedCustomers();
@@ -97,6 +105,7 @@ public class DemoDataSeeder {
                 log.info("Demonstration prete : {} clients, {} produits, {} contrats, {} paiements.",
                         customers.size(), products.size(), sales.size(), payments);
             } finally {
+                TenantContext.clear();
                 SecurityContextHolder.clearContext();
             }
         };

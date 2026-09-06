@@ -1,6 +1,7 @@
 package com.creditflow.config;
 
 import com.creditflow.auth.security.JwtAuthenticationFilter;
+import com.creditflow.common.security.TenantContextFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.creditflow.common.exception.ApiError;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,7 @@ public class SecurityConfig {
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final TenantContextFilter tenantContextFilter;
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
 
@@ -60,7 +62,8 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, ex) ->
                                 writeError(response, request.getRequestURI(), HttpStatus.FORBIDDEN,
                                         "Acces refuse")))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(tenantContextFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

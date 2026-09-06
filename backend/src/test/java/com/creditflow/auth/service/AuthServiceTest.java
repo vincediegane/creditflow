@@ -85,6 +85,7 @@ class AuthServiceTest {
 
         when(userRepository.findByUsernameIgnoreCase("admin")).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        when(currentShopContext.reloadWithShopsInitialized("admin")).thenReturn(user);
     }
 
     @AfterEach

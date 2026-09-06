@@ -29,13 +29,17 @@ public class SecurityDefaultsValidator {
             "creditflow-super-secret-key-change-me-in-production-0123456789";
     static final String DEFAULT_ADMIN_PASSWORD = "admin123";
     static final String DEFAULT_DB_PASSWORD = "creditflow";
+    static final String DEFAULT_APP_DB_PASSWORD = "creditflow_app";
     static final int MIN_JWT_SECRET_LENGTH = 32;
     static final int MIN_ADMIN_PASSWORD_LENGTH = 8;
 
     private final AppProperties properties;
 
     @Value("${spring.datasource.password:}")
-    private String databasePassword;
+    private String appDatabasePassword;
+
+    @Value("${spring.flyway.password:}")
+    private String migrationDatabasePassword;
 
     @PostConstruct
     void validate() {
@@ -84,8 +88,11 @@ public class SecurityDefaultsValidator {
             problems.add("ADMIN_PASSWORD doit contenir au moins "
                     + MIN_ADMIN_PASSWORD_LENGTH + " caracteres");
         }
-        if (DEFAULT_DB_PASSWORD.equals(databasePassword)) {
-            problems.add("DB_PASSWORD utilise encore la valeur de livraison");
+        if (DEFAULT_APP_DB_PASSWORD.equals(appDatabasePassword)) {
+            problems.add("DB_APP_PASSWORD utilise encore la valeur de livraison");
+        }
+        if (DEFAULT_DB_PASSWORD.equals(migrationDatabasePassword)) {
+            problems.add("DB_MIGRATION_PASSWORD utilise encore la valeur de livraison");
         }
         if (properties.getDemo().isSeed()) {
             problems.add("DEMO_SEED doit valoir false : les donnees de demonstration "

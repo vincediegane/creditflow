@@ -11,6 +11,7 @@ import com.creditflow.auth.security.JwtService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.security.CurrentShopContext;
+import com.creditflow.common.security.TenantContext;
 import com.creditflow.config.AppProperties;
 import com.creditflow.shop.dto.ShopSummary;
 import lombok.RequiredArgsConstructor;
@@ -36,23 +37,36 @@ public class AuthService {
     private final CurrentShopContext currentShopContext;
     private final AppProperties properties;
 
-    @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.username(), request.password()));
 
+        // Etape 1 : userRepository est un bean distinct d'AuthService -- cet appel ouvre sa
+        // propre transaction/session (comportement par defaut de SimpleJpaRepository), meme
+        // si login() n'est plus @Transactional. Ne touche que `users` (hors RLS).
         User user = userRepository.findByUsernameIgnoreCase(request.username())
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
 
-        String token = jwtService.generateToken(user.getUsername(), user.getRole().name());
-        log.info("Connexion reussie pour {}", user.getUsername());
+        // user.getOrganization() est un proxy lazy : .getId() est lisible sans requete
+        // supplementaire (l'id de la FK est deja connu), meme sur une entite detachee.
+        TenantContext.set(user.getOrganization().getId());
+        try {
+            // Etape 2 : currentShopContext est aussi un bean distinct -- nouvel appel a travers
+            // le proxy Spring, donc nouvelle transaction/session, cette fois avec le tenant
+            // resolu. Recharge l'utilisateur (necessaire : l'instance de l'etape 1 est detachee,
+            // sa collection `shops` lazy ne peut pas etre initialisee dans une autre session).
+            User reloaded = currentShopContext.reloadWithShopsInitialized(request.username());
 
-        PlanSummary plan = new PlanSummary(properties.getPlan().isMultiShop(), properties.getPlan().isWhatsappAuto());
+            String token = jwtService.generateToken(reloaded.getUsername(), reloaded.getRole().name());
+            log.info("Connexion reussie pour {}", reloaded.getUsername());
+            PlanSummary plan = new PlanSummary(
+                    properties.getPlan().isMultiShop(), properties.getPlan().isWhatsappAuto());
 
-        // authenticationManager.authenticate() ne peuple pas le SecurityContext : les boutiques
-        // accessibles sont resolues depuis l'utilisateur deja charge, pas depuis le contexte courant.
-        return new AuthResponse(token, "Bearer", jwtService.expiryOf(token), toResponse(user),
-                currentShopContext.accessibleShops(user), plan);
+            return new AuthResponse(token, "Bearer", jwtService.expiryOf(token), toResponse(reloaded),
+                    currentShopContext.accessibleShops(reloaded), plan);
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     @Transactional(readOnly = true)
