@@ -347,9 +347,10 @@ class CreditSaleServiceTest {
     @Test
     @DisplayName("accumule les pieces d'identite attachees")
     void accumulatesIdDocumentAttachments() {
+        when(currentShopContext.currentOrganizationId()).thenReturn(100L);
         MockMultipartFile file = new MockMultipartFile(
                 "file", "cni.png", "image/png", new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47});
-        when(documentStorage.store(file, "sales/1")).thenReturn("/uploads/sales/1/cni.png");
+        when(documentStorage.store(file, "org-100/sales/1")).thenReturn("/uploads/sales/1/cni.png");
         when(saleAttachmentRepository.save(any(SaleAttachment.class))).thenAnswer(i -> {
             SaleAttachment saved = i.getArgument(0);
             saved.setId(5L);
@@ -370,9 +371,10 @@ class CreditSaleServiceTest {
                 .id(7L).sale(sale).type(SaleAttachmentType.SIGNATURE).fileUrl("/uploads/sales/1/old.png").build();
         when(saleAttachmentRepository.findBySaleIdAndType(1L, SaleAttachmentType.SIGNATURE))
                 .thenReturn(List.of(existing));
+        when(currentShopContext.currentOrganizationId()).thenReturn(100L);
         MockMultipartFile file = new MockMultipartFile(
                 "file", "signature.png", "image/png", new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47});
-        when(documentStorage.store(file, "sales/1")).thenReturn("/uploads/sales/1/new.png");
+        when(documentStorage.store(file, "org-100/sales/1")).thenReturn("/uploads/sales/1/new.png");
         when(saleAttachmentRepository.save(any(SaleAttachment.class))).thenAnswer(i -> i.getArgument(0));
 
         creditSaleService.uploadAttachment(1L, SaleAttachmentType.SIGNATURE, file);

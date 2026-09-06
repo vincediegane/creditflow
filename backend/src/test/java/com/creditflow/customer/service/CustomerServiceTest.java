@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.Optional;
 
@@ -202,6 +203,24 @@ class CustomerServiceTest {
 
         assertThatThrownBy(() -> customerService.resolvePhoto(5L))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("uploadPhoto stocke le fichier dans un dossier prefixe par l'organisation")
+    void uploadPhotoStoresFileUnderOrganizationScopedFolder() {
+        Shop shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
+        Customer customer = Customer.builder()
+                .id(1L).firstName("Amadou").lastName("Diallo").phone("770000001").active(true)
+                .shop(shop).build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "photo.png", "image/png", new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47});
+        when(documentStorage.store(file, "org-100/customers")).thenReturn("/uploads/org-100/customers/a.png");
+        when(customerRepository.save(any(Customer.class))).thenAnswer(i -> i.getArgument(0));
+
+        customerService.uploadPhoto(1L, file);
+
+        verify(documentStorage).store(file, "org-100/customers");
     }
 
     @Test
