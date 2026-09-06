@@ -64,6 +64,37 @@ Un service `backup` tourne en permanence : une sauvegarde au démarrage, puis to
 > Une sauvegarde qui reste sur le disque qui tombe en panne ne protège de rien.
 > Testez une restauration avant la mise en service, puis une fois par trimestre.
 
+### Export / suppression par organisation
+
+Contrairement à `backup.sh`/`restore.sh` (sauvegarde/restauration complète de la base, toutes
+organisations confondues), ces deux scripts opèrent **une seule organisation à la fois** :
+
+```bash
+./scripts/tenant-export.sh <org_id>          # export CSV isolé, aucune autre organisation visible
+./scripts/tenant-delete.sh <org_id>          # suppression définitive, export préalable automatique
+```
+
+- `tenant-export.sh` écrit `./backups/tenant-exports/<org_id>-<horodatage>.tar.gz` (un `.csv`
+  par table une fois décompressé). Isolation garantie par le rôle applicatif restreint et la
+  Row-Level Security (`V15__row_level_security.sql`), plus des filtres explicites pour les
+  tables hors RLS (`organizations`, `users`, `audit_log`).
+- `tenant-delete.sh` exécute d'abord un export frais (comportement par défaut ; `SKIP_EXPORT=1`
+  pour désactiver, **déconseillé** : aucune restauration ciblée par organisation n'existe,
+  réimporter un export `.csv` est un travail manuel), demande une confirmation `OUI`
+  (`FORCE=1` pour l'automatisation, même convention que `restore.sh`), supprime les données en
+  base dans une transaction unique puis les fichiers physiques associés (photos clients, pièces
+  jointes de vente).
+- `suppliers` et `penalty_settings` (partagés entre organisations) ne sont **jamais** exportés
+  ni supprimés par ces scripts.
+- Le nettoyage des fichiers physiques ne couvre que `app.storage.provider=local` (valeur par
+  défaut). Le fournisseur `s3` est hors périmètre : les fichiers restent dans le bucket S3
+  après suppression de l'organisation.
+- **Coexistence, pas de bascule** : une instance mono-tenant déployée (une base Postgres par
+  client) reste définitivement en place — elle est déjà, structurellement, une base
+  multi-tenant à une seule organisation. La mutualisation est un mode de déploiement
+  additionnel pour les nouveaux clients, pas un remplacement. Détail et justification complète :
+  `docs/bolts/43-multitenant-outillage-exploitation-tenant/design.md`.
+
 ### HTTPS
 
 Dès que `certs/fullchain.pem` et `certs/privkey.pem` existent, le frontend bascule
