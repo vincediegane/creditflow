@@ -82,7 +82,8 @@ public class CreditSaleService {
                         SaleSpecifications.matches(search),
                         SaleSpecifications.hasStatus(status),
                         SaleSpecifications.forCustomer(customerId),
-                        SaleSpecifications.inShops(currentShopContext.accessibleShopIds())),
+                        SaleSpecifications.inShops(currentShopContext.accessibleShopIds()),
+                        SaleSpecifications.inOrganization(currentShopContext.currentOrganizationId())),
                 pageable);
         return PageResponse.of(page, sale -> saleMapper.toResponse(sale, sale.getInstallments(), today, settings));
     }

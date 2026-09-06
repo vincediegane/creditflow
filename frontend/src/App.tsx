@@ -34,8 +34,6 @@ export default function App() {
           <Route path="clients" element={<CustomersPage />} />
           <Route path="clients/:id" element={<CustomerDetailPage />} />
           <Route path="produits" element={<ProductsPage />} />
-          <Route path="fournisseurs" element={<SuppliersPage />} />
-          <Route path="achats" element={<StockReceptionsPage />} />
           <Route path="ventes" element={<SalesPage />} />
           <Route path="ventes/nouvelle" element={<NewSalePage />} />
           <Route path="ventes/:id" element={<SaleDetailPage />} />
@@ -43,9 +41,11 @@ export default function App() {
           <Route path="echeances" element={<InstallmentsPage />} />
           <Route path="relances" element={<LateCustomersPage />} />
           <Route path="rapports" element={<ReportsPage />} />
-          <Route path="reprise" element={<ImportPage />} />
           <Route path="recherche" element={<SearchPage />} />
           <Route element={<RequireRole role="ADMIN" />}>
+            <Route path="fournisseurs" element={<SuppliersPage />} />
+            <Route path="achats" element={<StockReceptionsPage />} />
+            <Route path="reprise" element={<ImportPage />} />
             <Route path="utilisateurs" element={<UsersPage />} />
             <Route path="boutiques" element={<ShopsPage />} />
             <Route path="parametres/penalites" element={<PenaltySettingsPage />} />

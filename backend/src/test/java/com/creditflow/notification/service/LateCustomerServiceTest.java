@@ -1,5 +1,6 @@
 package com.creditflow.notification.service;
 
+import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.customer.domain.Customer;
 import com.creditflow.penalty.domain.PenaltyPeriod;
 import com.creditflow.penalty.domain.PenaltyRateType;
@@ -45,6 +46,9 @@ class LateCustomerServiceTest {
     @Mock
     private PenaltyCalculator penaltyCalculator;
 
+    @Mock
+    private CurrentShopContext currentShopContext;
+
     @InjectMocks
     private LateCustomerService lateCustomerService;
 
@@ -54,24 +58,27 @@ class LateCustomerServiceTest {
                 .id(1L).enabled(false).rateType(PenaltyRateType.FIXED)
                 .rate(BigDecimal.ZERO).period(PenaltyPeriod.DAY).build());
         when(penaltyCalculator.totalOutstanding(any(), any(), any())).thenReturn(BigDecimal.ZERO);
+        when(currentShopContext.currentOrganizationId()).thenReturn(100L);
     }
 
     @Test
     @DisplayName("lateCustomers ne delegue qu'aux boutiques fournies")
     void lateCustomersDelegatesToShopIds() {
         List<Long> shopIds = List.of(1L, 2L);
-        when(installmentRepository.findLateForShops(any(), eq(shopIds))).thenReturn(List.of(lateInstallment()));
+        when(installmentRepository.findLateForShops(any(), eq(shopIds), eq(100L)))
+                .thenReturn(List.of(lateInstallment()));
 
         lateCustomerService.lateCustomers(shopIds);
 
-        verify(installmentRepository).findLateForShops(any(), eq(shopIds));
+        verify(installmentRepository).findLateForShops(any(), eq(shopIds), eq(100L));
     }
 
     @Test
     @DisplayName("agrege les echeances en retard par client")
     void groupsLateInstallmentsByCustomer() {
         List<Long> shopIds = List.of(1L);
-        when(installmentRepository.findLateForShops(any(), eq(shopIds))).thenReturn(List.of(lateInstallment()));
+        when(installmentRepository.findLateForShops(any(), eq(shopIds), eq(100L)))
+                .thenReturn(List.of(lateInstallment()));
 
         var result = lateCustomerService.lateCustomers(shopIds);
 

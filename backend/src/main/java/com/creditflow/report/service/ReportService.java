@@ -155,7 +155,8 @@ public class ReportService {
     }
 
     private ReportData outstanding(List<Long> shopIds) {
-        List<CreditSale> sales = saleRepository.findAllDetailedForShops(shopIds).stream()
+        List<CreditSale> sales = saleRepository
+                .findAllDetailedForShops(shopIds, currentShopContext.currentOrganizationId()).stream()
                 .filter(s -> s.getStatus() == SaleStatus.ACTIVE)
                 .toList();
 
@@ -209,7 +210,8 @@ public class ReportService {
                                    List<Long> shopIds) {
         String normalizedFilter = profession == null || profession.isBlank() ? null : profession.trim();
 
-        List<CreditSale> sales = saleRepository.findAllDetailedForShops(shopIds).stream()
+        List<CreditSale> sales = saleRepository
+                .findAllDetailedForShops(shopIds, currentShopContext.currentOrganizationId()).stream()
                 .filter(s -> s.getStatus() == SaleStatus.ACTIVE)
                 .filter(s -> minAmount == null || s.getTotalPrice().compareTo(minAmount) >= 0)
                 .filter(s -> maxAmount == null || s.getTotalPrice().compareTo(maxAmount) <= 0)
@@ -286,7 +288,8 @@ public class ReportService {
         Map<String, String> fullNameByUsername = userRepository.findAll().stream()
                 .collect(Collectors.toMap(User::getUsername, User::getFullName, (a, b) -> a));
 
-        List<CreditSale> sales = saleRepository.findAllDetailedForShops(shopIds).stream()
+        List<CreditSale> sales = saleRepository
+                .findAllDetailedForShops(shopIds, currentShopContext.currentOrganizationId()).stream()
                 .filter(s -> s.getStatus() != SaleStatus.CANCELLED)
                 .toList();
 
@@ -371,7 +374,8 @@ public class ReportService {
     private LateInstallments lateInstallments(List<Long> shopIds) {
         Set<Long> saleIds = new HashSet<>();
         Map<Long, BigDecimal> amountBySale = new HashMap<>();
-        for (Installment installment : installmentRepository.findLateForShops(LocalDate.now(), shopIds)) {
+        for (Installment installment : installmentRepository.findLateForShops(LocalDate.now(), shopIds,
+                currentShopContext.currentOrganizationId())) {
             Long saleId = installment.getSale().getId();
             saleIds.add(saleId);
             amountBySale.merge(saleId, installment.getRemaining(), BigDecimal::add);

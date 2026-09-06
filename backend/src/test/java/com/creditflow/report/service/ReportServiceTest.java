@@ -75,9 +75,9 @@ class ReportServiceTest {
     @BeforeEach
     void setUp() {
         when(userRepository.findAll()).thenReturn(List.of());
-        when(installmentRepository.findLateForShops(any(), any())).thenReturn(List.of());
+        when(installmentRepository.findLateForShops(any(), any(), any())).thenReturn(List.of());
         when(currentShopContext.resolveReadFilter()).thenReturn(List.of(1L));
-        when(currentShopContext.currentOrganizationId()).thenReturn(200L);
+        when(currentShopContext.currentOrganizationId()).thenReturn(100L);
 
         shop1 = Shop.builder().id(1L).name("Boutique principale").active(true).build();
         shop2 = Shop.builder().id(2L).name("Boutique annexe").active(true).build();
@@ -112,12 +112,12 @@ class ReportServiceTest {
     void dailyPayments_usesResolvedShopIds() {
         Payment payment = Payment.builder().id(1L).sale(saleShop1).amount(new BigDecimal("50000"))
                 .paymentDate(LocalDate.now()).method(PaymentMethod.CASH).build();
-        when(paymentRepository.findBetweenForShops(any(), any(), eq(List.of(1L)), eq(200L)))
+        when(paymentRepository.findBetweenForShops(any(), any(), eq(List.of(1L)), eq(100L)))
                 .thenReturn(List.of(payment));
 
         ReportData data = reportService.build(ReportType.DAILY_PAYMENTS, null, null, null, null, null);
 
-        verify(paymentRepository).findBetweenForShops(any(), any(), eq(List.of(1L)), eq(200L));
+        verify(paymentRepository).findBetweenForShops(any(), any(), eq(List.of(1L)), eq(100L));
         assertThat(data.rows()).hasSize(1);
     }
 
@@ -125,12 +125,12 @@ class ReportServiceTest {
     @DisplayName("MONTHLY_PAYMENTS interroge les paiements avec le resultat de resolveReadFilter()")
     void monthlyPayments_usesResolvedShopIds() {
         when(currentShopContext.resolveReadFilter()).thenReturn(List.of(1L, 2L));
-        when(paymentRepository.findBetweenForShops(any(), any(), eq(List.of(1L, 2L)), eq(200L)))
+        when(paymentRepository.findBetweenForShops(any(), any(), eq(List.of(1L, 2L)), eq(100L)))
                 .thenReturn(List.of());
 
         reportService.build(ReportType.MONTHLY_PAYMENTS, null, null, null, null, null);
 
-        verify(paymentRepository).findBetweenForShops(any(), any(), eq(List.of(1L, 2L)), eq(200L));
+        verify(paymentRepository).findBetweenForShops(any(), any(), eq(List.of(1L, 2L)), eq(100L));
     }
 
     @Test
@@ -150,18 +150,18 @@ class ReportServiceTest {
     @Test
     @DisplayName("OUTSTANDING interroge les contrats avec le resultat de resolveReadFilter()")
     void outstanding_usesResolvedShopIds() {
-        when(saleRepository.findAllDetailedForShops(List.of(1L))).thenReturn(List.of(saleShop1));
+        when(saleRepository.findAllDetailedForShops(List.of(1L), 100L)).thenReturn(List.of(saleShop1));
 
         ReportData data = reportService.build(ReportType.OUTSTANDING, null, null, null, null, null);
 
-        verify(saleRepository).findAllDetailedForShops(List.of(1L));
+        verify(saleRepository).findAllDetailedForShops(List.of(1L), 100L);
         assertThat(data.rows()).hasSize(1);
     }
 
     @Test
     @DisplayName("non-regression mono-boutique : aucune ligne de la boutique 2 n'apparait")
     void outstanding_monoShopExcludesOtherShopRows() {
-        when(saleRepository.findAllDetailedForShops(List.of(1L))).thenReturn(List.of(saleShop1));
+        when(saleRepository.findAllDetailedForShops(List.of(1L), 100L)).thenReturn(List.of(saleShop1));
 
         ReportData filtered = reportService.build(ReportType.OUTSTANDING, null, null, null, null, null);
 
@@ -174,23 +174,23 @@ class ReportServiceTest {
     @Test
     @DisplayName("DEFAULT_RATE interroge les contrats avec le resultat de resolveReadFilter()")
     void defaultRate_usesResolvedShopIds() {
-        when(saleRepository.findAllDetailedForShops(List.of(1L))).thenReturn(List.of(saleShop1));
+        when(saleRepository.findAllDetailedForShops(List.of(1L), 100L)).thenReturn(List.of(saleShop1));
 
         reportService.build(ReportType.DEFAULT_RATE, null, null, null, null, null);
 
-        verify(saleRepository).findAllDetailedForShops(List.of(1L));
-        verify(installmentRepository).findLateForShops(any(), eq(List.of(1L)));
+        verify(saleRepository).findAllDetailedForShops(List.of(1L), 100L);
+        verify(installmentRepository).findLateForShops(any(), eq(List.of(1L)), eq(100L));
     }
 
     @Test
     @DisplayName("SELLER_PERFORMANCE interroge les contrats avec le resultat de resolveReadFilter()")
     void sellerPerformance_usesResolvedShopIds() {
-        when(saleRepository.findAllDetailedForShops(List.of(1L))).thenReturn(List.of(saleShop1));
+        when(saleRepository.findAllDetailedForShops(List.of(1L), 100L)).thenReturn(List.of(saleShop1));
 
         reportService.build(ReportType.SELLER_PERFORMANCE, null, null, null, null, null);
 
-        verify(saleRepository).findAllDetailedForShops(List.of(1L));
-        verify(installmentRepository).findLateForShops(any(), eq(List.of(1L)));
+        verify(saleRepository).findAllDetailedForShops(List.of(1L), 100L);
+        verify(installmentRepository).findLateForShops(any(), eq(List.of(1L)), eq(100L));
     }
 
     // ------------------------------------------------------------------
@@ -202,7 +202,7 @@ class ReportServiceTest {
     void defaultRate_filtreParProfession() {
         CreditSale enseignant = sale(1L, "Enseignant ", "prof1", new BigDecimal("100000"));
         CreditSale commercant = sale(2L, "Commercant", "prof2", new BigDecimal("100000"));
-        when(saleRepository.findAllDetailedForShops(any())).thenReturn(List.of(enseignant, commercant));
+        when(saleRepository.findAllDetailedForShops(any(), any())).thenReturn(List.of(enseignant, commercant));
 
         ReportData data = reportService.build(ReportType.DEFAULT_RATE, null, null, "enseignant", null, null);
 
@@ -216,7 +216,7 @@ class ReportServiceTest {
         CreditSale small = sale(1L, "Enseignant", "prof1", new BigDecimal("50000"));
         CreditSale mid = sale(2L, "Enseignant", "prof1", new BigDecimal("150000"));
         CreditSale big = sale(3L, "Enseignant", "prof1", new BigDecimal("300000"));
-        when(saleRepository.findAllDetailedForShops(any())).thenReturn(List.of(small, mid, big));
+        when(saleRepository.findAllDetailedForShops(any(), any())).thenReturn(List.of(small, mid, big));
 
         ReportData minOnly = reportService.build(ReportType.DEFAULT_RATE, null, null, null,
                 new BigDecimal("100000"), null);
@@ -236,7 +236,7 @@ class ReportServiceTest {
     void defaultRate_professionNonRenseigneeRegroupee() {
         CreditSale blank = sale(1L, "   ", "prof1", new BigDecimal("100000"));
         CreditSale nullProfession = sale(2L, null, "prof2", new BigDecimal("100000"));
-        when(saleRepository.findAllDetailedForShops(any())).thenReturn(List.of(blank, nullProfession));
+        when(saleRepository.findAllDetailedForShops(any(), any())).thenReturn(List.of(blank, nullProfession));
 
         ReportData data = reportService.build(ReportType.DEFAULT_RATE, null, null, null, null, null);
 
@@ -251,13 +251,13 @@ class ReportServiceTest {
         CreditSale active = sale(1L, "Enseignant", "prof1", new BigDecimal("100000"));
         CreditSale cancelled = sale(2L, "Enseignant", "prof2", new BigDecimal("100000"));
         cancelled.setStatus(SaleStatus.CANCELLED);
-        when(saleRepository.findAllDetailedForShops(any())).thenReturn(List.of(active, cancelled));
+        when(saleRepository.findAllDetailedForShops(any(), any())).thenReturn(List.of(active, cancelled));
 
         Installment lateInstallment = Installment.builder()
                 .id(1L).sale(active).number(1).dueDate(LocalDate.now().minusDays(10))
                 .amount(new BigDecimal("50000")).amountPaid(BigDecimal.ZERO)
                 .status(InstallmentStatus.PENDING).build();
-        when(installmentRepository.findLateForShops(any(), any())).thenReturn(List.of(lateInstallment));
+        when(installmentRepository.findLateForShops(any(), any(), any())).thenReturn(List.of(lateInstallment));
 
         ReportData data = reportService.build(ReportType.DEFAULT_RATE, null, null, null, null, null);
 
@@ -276,7 +276,7 @@ class ReportServiceTest {
         CreditSale saleSeller2 = sale(2L, "Commercant", "prof2", new BigDecimal("200000"));
         saleSeller2.setCreatedBy("seller2");
         saleSeller2.setAmountPaid(new BigDecimal("90000"));
-        when(saleRepository.findAllDetailedForShops(any())).thenReturn(List.of(saleSeller1, saleSeller2));
+        when(saleRepository.findAllDetailedForShops(any(), any())).thenReturn(List.of(saleSeller1, saleSeller2));
         when(userRepository.findAll()).thenReturn(List.of(
                 User.builder().id(1L).username("seller1").fullName("Awa Ndiaye").role(Role.SELLER).enabled(true).build(),
                 User.builder().id(2L).username("seller2").fullName("Moussa Fall").role(Role.SELLER).enabled(true).build()));
@@ -295,7 +295,7 @@ class ReportServiceTest {
         noCreator.setCreatedBy(null);
         CreditSale unknownCreator = sale(2L, "Commercant", "prof2", new BigDecimal("100000"));
         unknownCreator.setCreatedBy("ghost");
-        when(saleRepository.findAllDetailedForShops(any())).thenReturn(List.of(noCreator, unknownCreator));
+        when(saleRepository.findAllDetailedForShops(any(), any())).thenReturn(List.of(noCreator, unknownCreator));
 
         ReportData data = reportService.build(ReportType.SELLER_PERFORMANCE, null, null, null, null, null);
 
@@ -310,7 +310,7 @@ class ReportServiceTest {
         CreditSale cancelled = sale(1L, "Enseignant", "prof1", new BigDecimal("100000"));
         cancelled.setStatus(SaleStatus.CANCELLED);
         cancelled.setCreatedBy("seller1");
-        when(saleRepository.findAllDetailedForShops(any())).thenReturn(List.of(cancelled));
+        when(saleRepository.findAllDetailedForShops(any(), any())).thenReturn(List.of(cancelled));
 
         ReportData data = reportService.build(ReportType.SELLER_PERFORMANCE, null, null, null, null, null);
 
@@ -321,7 +321,7 @@ class ReportServiceTest {
     @DisplayName("le rapport DEFAULT_RATE est exportable en pdf et excel")
     void defaultRateEstExportable() {
         CreditSale active = sale(1L, "Enseignant", "prof1", new BigDecimal("100000"));
-        when(saleRepository.findAllDetailedForShops(any())).thenReturn(List.of(active));
+        when(saleRepository.findAllDetailedForShops(any(), any())).thenReturn(List.of(active));
 
         ReportData data = reportService.build(ReportType.DEFAULT_RATE, null, null, null, null, null);
 
@@ -337,7 +337,7 @@ class ReportServiceTest {
     void sellerPerformanceEstExportable() {
         CreditSale active = sale(1L, "Enseignant", "prof1", new BigDecimal("100000"));
         active.setCreatedBy("seller1");
-        when(saleRepository.findAllDetailedForShops(any())).thenReturn(List.of(active));
+        when(saleRepository.findAllDetailedForShops(any(), any())).thenReturn(List.of(active));
 
         ReportData data = reportService.build(ReportType.SELLER_PERFORMANCE, null, null, null, null, null);
 

@@ -78,4 +78,28 @@ class DocumentValidationTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("Format d'image non supporte");
     }
+
+    @Test
+    @DisplayName("rejette une extension heic avec un message dedie")
+    void rejectsHeicExtension() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "photo.heic", "image/heic", "peu importe le contenu".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> documentValidation.validate(file))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("HEIC/HEIF")
+                .hasMessageContaining("Convertissez");
+    }
+
+    @Test
+    @DisplayName("rejette une extension heif avec un message dedie")
+    void rejectsHeifExtension() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "photo.heif", "image/heif", "peu importe le contenu".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> documentValidation.validate(file))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("HEIC/HEIF")
+                .hasMessageContaining("Convertissez");
+    }
 }

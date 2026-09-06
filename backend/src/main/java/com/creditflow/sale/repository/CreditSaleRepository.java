@@ -31,6 +31,13 @@ public interface CreditSaleRepository extends JpaRepository<CreditSale, Long>,
             """)
     Optional<CreditSale> findDetailById(@Param("id") Long id);
 
+    /**
+     * Filtre uniquement par customerId, sans filtre organisation direct : le contrat implicite
+     * est que l'appelant a deja valide l'acces au client (CustomerService.findById/getEntity,
+     * deja scope organisation par #35/#36) avant d'invoquer cette methode. Ne jamais exposer
+     * directement a un controleur avec un customerId de requete sans validation prealable
+     * (cf. docs/bolts/37-.../design.md, section Risques).
+     */
     @Query("""
             SELECT s FROM CreditSale s
             JOIN FETCH s.customer
@@ -45,16 +52,32 @@ public interface CreditSaleRepository extends JpaRepository<CreditSale, Long>,
     long countByShop_IdIn(List<Long> shopIds);
 
     @Query("SELECT COALESCE(SUM(s.remainingAmount), 0) FROM CreditSale s "
-            + "WHERE s.status = :status AND s.shop.id IN :shopIds")
-    BigDecimal sumRemainingByStatusForShops(@Param("status") SaleStatus status, @Param("shopIds") List<Long> shopIds);
+            + "WHERE s.status = :status AND s.shop.id IN :shopIds AND s.shop.organization.id = :organizationId")
+    BigDecimal sumRemainingByStatusForShops(@Param("status") SaleStatus status, @Param("shopIds") List<Long> shopIds,
+                                             @Param("organizationId") Long organizationId);
 
+    /**
+     * Filtre uniquement par customerId, sans filtre organisation direct : le contrat implicite
+     * est que l'appelant a deja valide l'acces au client (CustomerService.findById/getEntity,
+     * deja scope organisation par #35/#36) avant d'invoquer cette methode. Ne jamais exposer
+     * directement a un controleur avec un customerId de requete sans validation prealable
+     * (cf. docs/bolts/37-.../design.md, section Risques).
+     */
     @Query("SELECT COALESCE(SUM(s.totalPrice), 0) FROM CreditSale s WHERE s.customer.id = :customerId")
     BigDecimal sumTotalPriceByCustomer(@Param("customerId") Long customerId);
 
+    /**
+     * Filtre uniquement par customerId, sans filtre organisation direct : le contrat implicite
+     * est que l'appelant a deja valide l'acces au client (CustomerService.findById/getEntity,
+     * deja scope organisation par #35/#36) avant d'invoquer cette methode. Ne jamais exposer
+     * directement a un controleur avec un customerId de requete sans validation prealable
+     * (cf. docs/bolts/37-.../design.md, section Risques).
+     */
     @Query("SELECT COALESCE(SUM(s.remainingAmount), 0) FROM CreditSale s WHERE s.customer.id = :customerId")
     BigDecimal sumRemainingByCustomer(@Param("customerId") Long customerId);
 
     @Query("SELECT s FROM CreditSale s JOIN FETCH s.customer JOIN FETCH s.product "
-            + "WHERE s.shop.id IN :shopIds ORDER BY s.createdAt DESC")
-    List<CreditSale> findAllDetailedForShops(@Param("shopIds") List<Long> shopIds);
+            + "WHERE s.shop.id IN :shopIds AND s.shop.organization.id = :organizationId ORDER BY s.createdAt DESC")
+    List<CreditSale> findAllDetailedForShops(@Param("shopIds") List<Long> shopIds,
+                                              @Param("organizationId") Long organizationId);
 }

@@ -55,4 +55,42 @@ class InstallmentSpecificationsTest {
         verify(shopPath).get("id");
         verify(idPath).in(List.of(1L, 2L));
     }
+
+    @Test
+    @DisplayName("inOrganization ne genere aucun predicat pour un id nul")
+    void inOrganizationReturnsNullWhenNull() {
+        assertThat(InstallmentSpecifications.inOrganization(null)).isNull();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Test
+    @DisplayName("inOrganization filtre sur sale.shop.organization.id")
+    void inOrganizationFiltersOnSaleShopOrganizationId() {
+        Root<Installment> root = mock(Root.class);
+        CriteriaQuery<?> query = mock(CriteriaQuery.class);
+        CriteriaBuilder cb = mock(CriteriaBuilder.class);
+        Path salePath = mock(Path.class);
+        Path shopPath = mock(Path.class);
+        Path organizationPath = mock(Path.class);
+        Path idPath = mock(Path.class);
+        Predicate predicate = mock(Predicate.class);
+
+        when(root.get("sale")).thenReturn(salePath);
+        when(salePath.get("shop")).thenReturn(shopPath);
+        when(shopPath.get("organization")).thenReturn(organizationPath);
+        when(organizationPath.get("id")).thenReturn(idPath);
+        when(cb.equal(idPath, 1L)).thenReturn(predicate);
+
+        Specification<Installment> specification = InstallmentSpecifications.inOrganization(1L);
+        assertThat(specification).isNotNull();
+
+        Predicate result = specification.toPredicate(root, query, cb);
+
+        assertThat(result).isEqualTo(predicate);
+        verify(root).get("sale");
+        verify(salePath).get("shop");
+        verify(shopPath).get("organization");
+        verify(organizationPath).get("id");
+        verify(cb).equal(idPath, 1L);
+    }
 }
