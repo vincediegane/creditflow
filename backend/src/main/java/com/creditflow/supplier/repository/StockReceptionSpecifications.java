@@ -37,4 +37,23 @@ public final class StockReceptionSpecifications {
             return cb.exists(lines);
         };
     }
+
+    /**
+     * Une reception appartient a l'organisation de la boutique de ses produits (via ses
+     * lignes). Meme structure de sous-requete EXISTS que inShops, un get(...) de plus dans
+     * la chaine du predicat.
+     */
+    public static Specification<StockReception> inOrganization(Long organizationId) {
+        if (organizationId == null) {
+            return null;
+        }
+        return (root, query, cb) -> {
+            Subquery<Long> lines = query.subquery(Long.class);
+            Root<StockReceptionLine> line = lines.from(StockReceptionLine.class);
+            lines.select(line.get("id"));
+            lines.where(cb.equal(line.get("reception"), root),
+                    cb.equal(line.get("product").get("shop").get("organization").get("id"), organizationId));
+            return cb.exists(lines);
+        };
+    }
 }
