@@ -5,6 +5,7 @@ import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.config.AppProperties;
 import com.creditflow.organization.domain.Organization;
 import com.creditflow.organization.repository.OrganizationRepository;
+import com.creditflow.organization.service.OrganizationPlanResolver;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.dto.ShopRequest;
 import com.creditflow.shop.dto.ShopResponse;
@@ -26,6 +27,7 @@ public class ShopService {
     private final ShopMapper shopMapper;
     private final AppProperties properties;
     private final OrganizationRepository organizationRepository;
+    private final OrganizationPlanResolver organizationPlanResolver;
 
     @Transactional(readOnly = true)
     public List<ShopResponse> list() {
@@ -48,11 +50,12 @@ public class ShopService {
 
     @Transactional
     public ShopResponse create(ShopRequest request) {
-        assertPlanAllowsActive(effectiveActive(request, null), false, null);
+        Organization organization = resolveDefaultOrganization();
+        assertPlanAllowsActive(effectiveActive(request, null), false, null, organization.getId());
         assertNameAvailable(request.name(), null);
 
         Shop shop = shopMapper.toEntity(request);
-        shop.setOrganization(resolveDefaultOrganization());
+        shop.setOrganization(organization);
         Shop saved = shopRepository.save(shop);
         log.info("Boutique creee: {} ({})", saved.getName(), saved.getId());
         return shopMapper.toResponse(saved);
@@ -61,7 +64,8 @@ public class ShopService {
     @Transactional
     public ShopResponse update(Long id, ShopRequest request) {
         Shop shop = getEntity(id);
-        assertPlanAllowsActive(effectiveActive(request, shop), shop.isActive(), id);
+        assertPlanAllowsActive(effectiveActive(request, shop), shop.isActive(), id,
+                shop.getOrganization().getId());
         assertNameAvailable(request.name(), id);
 
         shopMapper.updateEntity(request, shop);
@@ -104,8 +108,9 @@ public class ShopService {
      * jamais etre bloquee retroactivement, meme si d'autres boutiques actives existent deja
      * en base sur une instance dont le plan a ete degrade apres coup.
      */
-    private void assertPlanAllowsActive(boolean requestedActive, boolean wasActive, Long excludingShopId) {
-        if (!requestedActive || wasActive || properties.getPlan().isMultiShop()) {
+    private void assertPlanAllowsActive(boolean requestedActive, boolean wasActive, Long excludingShopId,
+            Long organizationId) {
+        if (!requestedActive || wasActive || organizationPlanResolver.multiShopEnabled(organizationId)) {
             return;
         }
         boolean anotherActiveShopExists = excludingShopId == null

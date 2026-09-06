@@ -13,6 +13,7 @@ import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.common.security.TenantContext;
 import com.creditflow.config.AppProperties;
+import com.creditflow.organization.service.OrganizationPlanResolver;
 import com.creditflow.shop.dto.ShopSummary;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final CurrentShopContext currentShopContext;
     private final AppProperties properties;
+    private final OrganizationPlanResolver organizationPlanResolver;
 
     public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(
@@ -60,7 +62,8 @@ public class AuthService {
             String token = jwtService.generateToken(reloaded.getUsername(), reloaded.getRole().name());
             log.info("Connexion reussie pour {}", reloaded.getUsername());
             PlanSummary plan = new PlanSummary(
-                    properties.getPlan().isMultiShop(), properties.getPlan().isWhatsappAuto());
+                    organizationPlanResolver.multiShopEnabled(reloaded.getOrganization().getId()),
+                    properties.getPlan().isWhatsappAuto());
 
             return new AuthResponse(token, "Bearer", jwtService.expiryOf(token), toResponse(reloaded),
                     currentShopContext.accessibleShops(reloaded), plan);
