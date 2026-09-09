@@ -101,6 +101,7 @@ services:
       PGPASSWORD: ${DB_MIGRATION_PASSWORD:-creditflow}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_MIN_SIZE_BYTES: ${BACKUP_MIN_SIZE_BYTES:-1024}
       TZ: ${TZ:-Africa/Dakar}
     volumes:
       - ./backups:/backups
