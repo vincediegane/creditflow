@@ -12,6 +12,7 @@
 # panne ne protege de rien.
 # =====================================================================
 set -eu
+set -o pipefail
 
 DIR="${BACKUP_DIR:-/backups}"
 INTERVAL_HOURS="${BACKUP_INTERVAL_HOURS:-24}"
@@ -36,7 +37,7 @@ while true; do
         log "OK  $(basename "$TARGET") ($(du -h "$TARGET" | cut -f1))"
     else
         rm -f "$TARGET.part"
-        log "ECHEC de la sauvegarde : $(tr '\n' ' ' < /tmp/pg_dump.err)"
+        log "CRITIQUE — echec de la sauvegarde : $(tr '\n' ' ' < /tmp/pg_dump.err)"
     fi
 
     DELETED=$(find "$DIR" -name 'creditflow-*.sql.gz' -mtime "+$RETENTION_DAYS" -print -delete | wc -l)
