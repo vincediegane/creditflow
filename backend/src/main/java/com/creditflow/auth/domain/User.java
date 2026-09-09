@@ -66,6 +66,15 @@ public class User extends Auditable {
     @Column(length = 255)
     private String email;
 
+    /** Compteur d'echecs consecutifs, remis a zero au succes ou au moment du verrouillage (#65). */
+    @Column(name = "failed_login_attempts", nullable = false)
+    @Builder.Default
+    private int failedLoginAttempts = 0;
+
+    /** NULL = pas de verrou actif. Compare a LocalDateTime.now() dans AuthService.login (#65). */
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "user_shops",
             joinColumns = @JoinColumn(name = "user_id"),

@@ -18,7 +18,10 @@ import com.creditflow.shop.dto.ShopSummary;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,14 +43,38 @@ public class AuthService {
     private final OrganizationPlanResolver organizationPlanResolver;
 
     public AuthResponse login(LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.username(), request.password()));
-
-        // Etape 1 : userRepository est un bean distinct d'AuthService -- cet appel ouvre sa
-        // propre transaction/session (comportement par defaut de SimpleJpaRepository), meme
-        // si login() n'est plus @Transactional. Ne touche que `users` (hors RLS).
+        // Etape 1 : lookup avant authenticate() (et donc avant tout calcul BCrypt), pour pouvoir
+        // rejeter immediatement un compte verrouille sans relancer l'authentification (#65).
+        // userRepository est un bean distinct d'AuthService -- cet appel ouvre sa propre
+        // transaction/session (comportement par defaut de SimpleJpaRepository), meme si login()
+        // n'est plus @Transactional. Ne touche que `users` (hors RLS).
+        //
+        // Compte inexistant : BadCredentialsException (pas ResourceNotFoundException) pour ne
+        // jamais reveler cette information -- GlobalExceptionHandler.handleAuthentication mappe
+        // toute AuthenticationException en 401 "Identifiants invalides", message strictement
+        // identique aux deux autres cas d'echec ci-dessous (#65, critere d'acceptation n3).
         User user = userRepository.findByUsernameIgnoreCase(request.username())
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+                .orElseThrow(() -> new BadCredentialsException("Identifiants invalides"));
+
+        // Compte verrouille par registerFailedAttempt (#65) : rejet avant authenticate(), donc
+        // sans cout BCrypt, avec le meme message que les deux autres cas d'echec.
+        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now())) {
+            throw new LockedException("Identifiants invalides");
+        }
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.username(), request.password()));
+        } catch (AuthenticationException ex) {
+            registerFailedAttempt(user);
+            throw ex;
+        }
+
+        if (user.getFailedLoginAttempts() != 0 || user.getLockedUntil() != null) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            userRepository.save(user);
+        }
 
         // user.getOrganization() est un proxy lazy : .getId() est lisible sans requete
         // supplementaire (l'id de la FK est deja connu), meme sur une entite detachee.
@@ -70,6 +97,26 @@ public class AuthService {
         } finally {
             TenantContext.clear();
         }
+    }
+
+    /**
+     * Incremente le compteur d'echecs consecutifs de {@code user} et pose un verrou temporaire
+     * (app.security.login.lockout-minutes) des que le seuil (app.security.login.max-attempts)
+     * est atteint. Le compteur est remis a zero au moment ou le verrou est pose (#65) : pas de
+     * cumul indefini, et une nouvelle serie complete de tentatives est disponible a l'expiration
+     * du verrou.
+     */
+    private void registerFailedAttempt(User user) {
+        AppProperties.Login loginConfig = properties.getSecurity().getLogin();
+        int attempts = user.getFailedLoginAttempts() + 1;
+        if (attempts >= loginConfig.getMaxAttempts()) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(LocalDateTime.now().plusMinutes(loginConfig.getLockoutMinutes()));
+            log.warn("Compte {} verrouille apres {} echecs consecutifs", user.getUsername(), attempts);
+        } else {
+            user.setFailedLoginAttempts(attempts);
+        }
+        userRepository.save(user);
     }
 
     @Transactional(readOnly = true)

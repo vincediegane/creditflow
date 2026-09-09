@@ -26,6 +26,7 @@ public class AppProperties {
     @Setter
     public static class Security {
         private Jwt jwt = new Jwt();
+        private Login login = new Login();
         /**
          * En mode strict (production), l'application refuse de demarrer si un secret
          * de livraison n'a pas ete remplace. Desactive uniquement pour la demonstration.
@@ -39,6 +40,15 @@ public class AppProperties {
         private String secret;
         private long expirationMinutes = 720;
         private String issuer = "creditflow";
+    }
+
+    @Getter
+    @Setter
+    public static class Login {
+        /** Nombre d'echecs consecutifs avant verrouillage temporaire du compte (#65). */
+        private int maxAttempts = 5;
+        /** Duree du verrouillage, en minutes, une fois le seuil atteint. */
+        private int lockoutMinutes = 15;
     }
 
     @Getter
