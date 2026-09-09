@@ -20,6 +20,7 @@ public class AppProperties {
     private Notification notification = new Notification();
     private Demo demo = new Demo();
     private Plan plan = new Plan();
+    private Mail mail = new Mail();
 
     @Getter
     @Setter
@@ -133,5 +134,17 @@ public class AppProperties {
          * par PlanConfigValidator, pas a l'execution (le canal est fige par bean Spring).
          */
         private boolean whatsappAuto = true;
+    }
+
+    @Getter
+    @Setter
+    public static class Mail {
+        private boolean enabled = false;
+        private String host;
+        private int port = 587;
+        private String username;
+        private String password;
+        private String from;
+        private String fromName = "CreditFlow";
     }
 }

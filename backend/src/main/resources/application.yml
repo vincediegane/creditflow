@@ -120,3 +120,11 @@ app:
   plan:
     multi-shop: ${PLAN_MULTI_SHOP:true}
     whatsapp-auto: ${PLAN_WHATSAPP_AUTO:true}
+  mail:
+    enabled: ${MAIL_ENABLED:false}
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    from: ${MAIL_FROM:}
+    from-name: ${MAIL_FROM_NAME:CreditFlow}
