@@ -12,6 +12,7 @@ import com.creditflow.organization.repository.OrganizationRepository;
 import com.creditflow.shop.domain.Shop;
 import com.creditflow.shop.dto.ShopSummary;
 import com.creditflow.shop.repository.ShopRepository;
+import com.creditflow.notification.service.EmailChannel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,6 +33,7 @@ public class UserService {
     private final ShopRepository shopRepository;
     private final PasswordEncoder passwordEncoder;
     private final OrganizationRepository organizationRepository;
+    private final EmailChannel emailChannel;
 
     @Transactional(readOnly = true)
     public List<UserResponse> list() {
@@ -54,6 +56,7 @@ public class UserService {
                 .password(passwordEncoder.encode(request.password()))
                 .fullName(request.fullName())
                 .role(request.role())
+                .email(request.email())
                 .enabled(true)
                 .mustChangePassword(true)
                 .shops(shops)
@@ -62,7 +65,30 @@ public class UserService {
 
         User saved = userRepository.save(user);
         log.info("Compte utilisateur cree: {} ({})", saved.getUsername(), saved.getId());
+        sendWelcomeEmail(saved);
         return toResponse(saved);
+    }
+
+    /**
+     * Envoi non bloquant : un echec (SMTP indisponible, config absente, canal
+     * desactive) ne doit jamais faire echouer la creation du compte deja
+     * persistee. Meme patron defensif que ReminderService.sendAll().
+     */
+    private void sendWelcomeEmail(User user) {
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            return;
+        }
+        try {
+            String subject = "Votre compte CreditFlow a ete cree";
+            String body = ("Bonjour %s,\n\n"
+                    + "Votre compte CreditFlow a ete cree avec l'identifiant \"%s\".\n"
+                    + "Connectez-vous avec le mot de passe qui vous a ete communique.\n\n"
+                    + "L'equipe CreditFlow").formatted(user.getFullName(), user.getUsername());
+            emailChannel.send(user.getEmail(), subject, body);
+        } catch (Exception e) {
+            log.warn("Echec de l'envoi de l'email de bienvenue a {} pour le compte {} : {}",
+                    user.getEmail(), user.getUsername(), e.getMessage());
+        }
     }
 
     @Transactional
@@ -118,6 +144,6 @@ public class UserService {
                 .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
                 .toList();
         return new UserResponse(user.getId(), user.getUsername(), user.getFullName(),
-                user.getRole().name(), user.isMustChangePassword(), user.isEnabled(), shops);
+                user.getRole().name(), user.isMustChangePassword(), user.isEnabled(), shops, user.getEmail());
     }
 }

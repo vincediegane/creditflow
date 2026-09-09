@@ -1,6 +1,7 @@
 package com.creditflow.auth.dto;
 
 import com.creditflow.auth.domain.Role;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -24,6 +25,10 @@ public record UserRequest(
         Role role,
 
         /** Validee en service (obligatoire pour un SELLER), pas en annotation car la regle depend du role. */
-        List<Long> shopIds
+        List<Long> shopIds,
+
+        @Email(message = "Format d'email invalide")
+        @Size(max = 255)
+        String email
 ) {
 }

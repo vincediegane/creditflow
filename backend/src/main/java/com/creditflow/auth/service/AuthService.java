@@ -116,6 +116,6 @@ public class AuthService {
                 .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
                 .toList();
         return new UserResponse(user.getId(), user.getUsername(), user.getFullName(),
-                user.getRole().name(), user.isMustChangePassword(), user.isEnabled(), shops);
+                user.getRole().name(), user.isMustChangePassword(), user.isEnabled(), shops, user.getEmail());
     }
 }
