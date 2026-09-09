@@ -58,6 +58,7 @@ export interface UserAccount {
   enabled: boolean;
   mustChangePassword: boolean;
   shops: ShopSummary[];
+  email?: string;
 }
 
 export interface CreateUserPayload {
@@ -66,6 +67,7 @@ export interface CreateUserPayload {
   fullName: string;
   role: Role;
   shopIds?: number[];
+  email?: string;
 }
 
 export interface ChangePasswordPayload {

@@ -12,6 +12,7 @@ public record UserResponse(
         /** Le client doit imposer le changement de mot de passe avant toute autre action. */
         boolean mustChangePassword,
         boolean enabled,
-        List<ShopSummary> shops
+        List<ShopSummary> shops,
+        String email
 ) {
 }

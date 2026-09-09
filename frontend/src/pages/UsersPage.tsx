@@ -43,6 +43,7 @@ const EMPTY_FORM: CreateUserPayload = {
   password: '',
   fullName: '',
   role: 'SELLER',
+  email: '',
   shopIds: [],
 };
 
@@ -260,6 +261,15 @@ export default function UsersPage() {
                 label="Identifiant"
                 {...register('username', { required: true })}
                 error={Boolean(formState.errors.username)}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                type="email"
+                label="Email (optionnel)"
+                {...register('email')}
+                error={Boolean(formState.errors.email)}
               />
             </Grid>
             <Grid item xs={12} sm={6}>

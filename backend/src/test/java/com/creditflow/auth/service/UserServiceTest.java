@@ -6,6 +6,7 @@ import com.creditflow.auth.dto.UserRequest;
 import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.exception.ResourceNotFoundException;
+import com.creditflow.notification.service.EmailChannel;
 import com.creditflow.organization.domain.Organization;
 import com.creditflow.organization.repository.OrganizationRepository;
 import com.creditflow.shop.domain.Shop;
@@ -28,6 +29,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,17 +48,20 @@ class UserServiceTest {
     @Mock
     private OrganizationRepository organizationRepository;
 
+    @Mock
+    private EmailChannel emailChannel;
+
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     private UserService userService;
 
     private UserRequest request() {
-        return new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of(1L));
+        return new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of(1L), null);
     }
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, shopRepository, passwordEncoder, organizationRepository);
+        userService = new UserService(userRepository, shopRepository, passwordEncoder, organizationRepository, emailChannel);
         Shop shop = Shop.builder().id(1L).name("Boutique principale").active(true).build();
         when(shopRepository.findById(1L)).thenReturn(Optional.of(shop));
         when(organizationRepository.findFirstByOrderByIdAsc())
@@ -148,7 +154,7 @@ class UserServiceTest {
     @Test
     @DisplayName("refuse un vendeur sans boutique assignee")
     void rejectsSellerWithoutShop() {
-        UserRequest request = new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of());
+        UserRequest request = new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of(), null);
 
         assertThatThrownBy(() -> userService.create(request))
                 .isInstanceOf(BusinessRuleException.class)
@@ -168,5 +174,48 @@ class UserServiceTest {
 
         assertThat(response.shops()).hasSize(1);
         assertThat(seller.getShops()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("envoie un email de bienvenue quand un email est fourni")
+    void createSendsWelcomeEmailWhenEmailProvided() {
+        when(userRepository.existsByUsernameIgnoreCase("fatou.diop")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        UserRequest request = new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop",
+                Role.SELLER, List.of(1L), "fatou@test.com");
+
+        userService.create(request);
+
+        verify(emailChannel).send(eq("fatou@test.com"), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("n'envoie aucun email quand aucun email n'est fourni")
+    void createDoesNotSendEmailWhenEmailAbsent() {
+        when(userRepository.existsByUsernameIgnoreCase("fatou.diop")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+        userService.create(request());
+
+        verify(emailChannel, never()).send(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("cree le compte meme si l'envoi d'email echoue")
+    void createSucceedsEvenWhenEmailChannelThrows() {
+        when(userRepository.existsByUsernameIgnoreCase("fatou.diop")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(i -> {
+            User saved = i.getArgument(0);
+            saved.setId(4L);
+            return saved;
+        });
+        when(emailChannel.send(any(), any(), any())).thenThrow(new RuntimeException("SMTP down"));
+        UserRequest request = new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop",
+                Role.SELLER, List.of(1L), "fatou@test.com");
+
+        var response = userService.create(request);
+
+        assertThat(response.id()).isEqualTo(4L);
+        verify(userRepository).save(any(User.class));
     }
 }

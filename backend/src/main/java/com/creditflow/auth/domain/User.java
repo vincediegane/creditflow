@@ -63,6 +63,9 @@ public class User extends Auditable {
     @Column(name = "password_changed_at")
     private LocalDateTime passwordChangedAt;
 
+    @Column(length = 255)
+    private String email;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "user_shops",
             joinColumns = @JoinColumn(name = "user_id"),

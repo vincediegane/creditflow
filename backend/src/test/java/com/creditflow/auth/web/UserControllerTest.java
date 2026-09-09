@@ -38,7 +38,7 @@ class UserControllerTest extends AbstractWebMvcSecurityTest {
     private UserService userService;
 
     private UserResponse response() {
-        return new UserResponse(4L, "fatou.diop", "Fatou Diop", "SELLER", true, true, List.of());
+        return new UserResponse(4L, "fatou.diop", "Fatou Diop", "SELLER", true, true, List.of(), null);
     }
 
     @Test
@@ -53,7 +53,7 @@ class UserControllerTest extends AbstractWebMvcSecurityTest {
         mockMvc.perform(post("/api/users")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(
-                                new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of(1L)))))
+                                new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of(1L), null))))
                 .andExpect(status().isForbidden());
     }
 
@@ -82,7 +82,7 @@ class UserControllerTest extends AbstractWebMvcSecurityTest {
         mockMvc.perform(post("/api/users")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(
-                                new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of(1L)))))
+                                new UserRequest("fatou.diop", "TempPass2026!", "Fatou Diop", Role.SELLER, List.of(1L), null))))
                 .andExpect(status().isCreated());
     }
 
