@@ -8,6 +8,8 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
+. ./scripts/backup-verify.sh
+
 DB_NAME="${DB_NAME:-creditflow}"
 DB_USERNAME="${DB_USERNAME:-creditflow}"
 STAMP=$(date +%Y%m%d-%H%M%S)
@@ -22,6 +24,11 @@ docker compose exec -T db \
     | gzip -9 > "$TARGET.part"
 
 mv "$TARGET.part" "$TARGET"
+
+if ! backup_verify "$TARGET"; then
+    echo "CRITIQUE : sauvegarde corrompue ou anormalement petite, mise en quarantaine ($TARGET)" >&2
+    exit 1
+fi
 
 echo "Sauvegarde terminee : $TARGET"
 ls -lh "$TARGET"
