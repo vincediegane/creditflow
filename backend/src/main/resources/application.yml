@@ -105,6 +105,9 @@ app:
       {{boutique}}
     window-start-day: 1
     window-end-day: 10
+    auto-enabled: ${REMINDER_AUTO_ENABLED:true}
+    auto-cron: "${REMINDER_AUTO_CRON:0 0 8 * * *}"
+    auto-cooldown-days: ${REMINDER_AUTO_COOLDOWN_DAYS:3}
   notification:
     channel: ${NOTIFICATION_CHANNEL:manual}
     default-country-code: ${NOTIFICATION_DEFAULT_COUNTRY_CODE:+221}
