@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -116,8 +117,10 @@ class ReminderServiceTest {
         ReminderResponse response = reminderService.send(new ReminderRequest(null, 1L, null));
 
         assertThat(response.sent()).isTrue();
+        ArgumentCaptor<String> detailCaptor = ArgumentCaptor.forClass(String.class);
         verify(auditLogService).record(eq("CUSTOMER"), eq(1L), eq(customer.getFullName()),
-                eq("REMINDER_SENT"), any());
+                eq("REMINDER_SENT"), detailCaptor.capture());
+        assertThat(detailCaptor.getValue()).doesNotEndWith("(auto)");
     }
 
     @Test
@@ -170,6 +173,53 @@ class ReminderServiceTest {
         assertThat(response.total()).isEqualTo(2);
         assertThat(response.sent()).isEqualTo(1);
         assertThat(response.failed()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("sendAutomatic() refuse le canal MANUAL_COPY")
+    void sendAutomaticRejectsManualChannel() {
+        when(notificationChannel.name()).thenReturn(ManualCopyChannel.NAME);
+
+        assertThatThrownBy(() -> reminderService.sendAutomatic(1L))
+                .isInstanceOf(BusinessRuleException.class);
+
+        verify(notificationChannel, never()).send(any(), any());
+    }
+
+    @Test
+    @DisplayName("sendAutomatic() historise un succes avec le suffixe (auto)")
+    void sendAutomaticRecordsSuccessWithAutoSuffix() {
+        Customer customer = customer(1L, "770000001");
+        when(customerService.getEntity(1L)).thenReturn(customer);
+        when(saleRepository.findByCustomer(1L)).thenReturn(List.of(sale(customer)));
+        when(notificationChannel.name()).thenReturn("WHATSAPP_CLOUD_API");
+        when(notificationChannel.send(eq("770000001"), any())).thenReturn(true);
+
+        ReminderResponse response = reminderService.sendAutomatic(1L);
+
+        assertThat(response.sent()).isTrue();
+        ArgumentCaptor<String> detailCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditLogService).record(eq("CUSTOMER"), eq(1L), eq(customer.getFullName()),
+                eq("REMINDER_SENT"), detailCaptor.capture());
+        assertThat(detailCaptor.getValue()).endsWith("(auto)");
+    }
+
+    @Test
+    @DisplayName("sendAutomatic() historise un echec avec le suffixe (auto)")
+    void sendAutomaticRecordsFailureWithAutoSuffix() {
+        Customer customer = customer(1L, "770000001");
+        when(customerService.getEntity(1L)).thenReturn(customer);
+        when(saleRepository.findByCustomer(1L)).thenReturn(List.of(sale(customer)));
+        when(notificationChannel.name()).thenReturn("WHATSAPP_CLOUD_API");
+        when(notificationChannel.send(eq("770000001"), any())).thenReturn(false);
+
+        ReminderResponse response = reminderService.sendAutomatic(1L);
+
+        assertThat(response.sent()).isFalse();
+        ArgumentCaptor<String> detailCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditLogService).record(eq("CUSTOMER"), eq(1L), eq(customer.getFullName()),
+                eq("REMINDER_FAILED"), detailCaptor.capture());
+        assertThat(detailCaptor.getValue()).endsWith("(auto)");
     }
 
     private Customer customer(Long id, String phone) {
