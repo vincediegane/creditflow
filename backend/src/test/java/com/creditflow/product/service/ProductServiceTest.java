@@ -182,6 +182,29 @@ class ProductServiceTest {
     }
 
     @Test
+    @DisplayName("getEntityForUpdate refuse l'acces a un produit d'une autre boutique")
+    void getEntityForUpdateRejectsProductFromAnotherShop() {
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(product));
+        org.mockito.Mockito.doThrow(new com.creditflow.common.exception.ResourceNotFoundException("Ressource introuvable"))
+                .when(currentShopContext).assertAccessible(1L);
+
+        assertThatThrownBy(() -> productService.getEntityForUpdate(1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("getEntityForUpdate renvoie le produit via le chargement verrouille")
+    void getEntityForUpdateReturnsProductWhenAccessible() {
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(product));
+
+        Product result = productService.getEntityForUpdate(1L);
+
+        assertThat(result).isEqualTo(product);
+        verify(productRepository).findByIdForUpdate(1L);
+        verify(productRepository, never()).findById(1L);
+    }
+
+    @Test
     @DisplayName("create assigne la boutique resolue par shopIdForCreation")
     void createAssignsShopFromCreationContext() {
         ProductRequest request = new ProductRequest("Telephone", "Electronique", new BigDecimal("100000"),
