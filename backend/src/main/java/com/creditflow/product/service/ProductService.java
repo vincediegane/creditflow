@@ -103,6 +103,14 @@ public class ProductService {
     }
 
     @Transactional
+    public Product getEntityForUpdate(Long id) {
+        Product product = productRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> ResourceNotFoundException.of("Produit", id));
+        currentShopContext.assertAccessible(product.getShop().getId());
+        return product;
+    }
+
+    @Transactional
     public ProductResponse create(ProductRequest request) {
         Shop shop = shopRepository.getReferenceById(currentShopContext.shopIdForCreation());
 

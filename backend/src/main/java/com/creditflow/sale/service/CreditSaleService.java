@@ -176,7 +176,12 @@ public class CreditSaleService {
     public SaleResponse create(CreateSaleRequest request) {
         Long targetShopId = currentShopContext.shopIdForCreation();
         Customer customer = customerService.getEntity(request.customerId());
-        Product product = productService.getEntity(request.productId());
+        Product product = productService.getEntityForUpdate(request.productId());
+
+        if (product.getStock() == null || product.getStock() <= 0) {
+            throw new BusinessRuleException(
+                    "Stock epuise pour ce produit : la vente ne peut pas etre creee");
+        }
 
         if (!customer.getShop().getId().equals(targetShopId)) {
             throw new BusinessRuleException(
@@ -235,9 +240,7 @@ public class CreditSaleService {
         saved.setReference(buildReference(saved));
         saved = saleRepository.save(saved);
 
-        if (product.getStock() != null && product.getStock() > 0) {
-            productService.decreaseStock(product, 1);
-        }
+        productService.decreaseStock(product, 1);
 
         log.info("Contrat {} cree pour {} ({} mensualites de {})",
                 saved.getReference(), customer.getFullName(), saved.getInstallmentCount(), saved.getMonthlyAmount());
