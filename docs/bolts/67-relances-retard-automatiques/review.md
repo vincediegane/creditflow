@@ -2,87 +2,105 @@
 
 ## Verdict
 
-CHANGES_REQUESTED
+APPROVE
 
 ## Resume
 
-L'architecture generale (scheduler + cooldown base sur l'audit + surcharge
-lateCustomers(shopIds, organizationId) + TenantContext par organisation) est
-propre et bien testee au niveau unitaire. Mais le chemin d'execution reel de
-ReminderService.sendAutomatic() traverse CustomerService.getEntity(), qui
-appelle CurrentShopContext.assertAccessible() -> currentUser(), lequel exige
-un Authentication dans le SecurityContextHolder. Le job planifie ne peuple
-jamais ce contexte. Resultat : en production, chaque relance automatique
-leve IllegalStateException("Aucun utilisateur authentifie"), est rattrapee
-par le catch (Exception e) par-client de ReminderSchedulerJob, et compte
-comme "echouee" - silencieusement, tous les jours, pour tous les clients. Le
-critere d'acceptation numero 1 du ticket (declenchement automatique reel, sans
-action humaine) n'est donc pas rempli malgre "431 tests, 0 echec".
+Deuxieme passage. Le Finding #1 (bloquant) du premier verdict est corrige :
+`ReminderService.sendAutomatic()` ne traverse plus `CustomerService.getEntity()`
+ni `CurrentShopContext` (donc plus `SecurityContextHolder`/`CurrentUser`). J'ai
+relu le chemin d'appel complet apres le fix (`sendAutomatic` ->
+`customerRepository.findById` -> `buildPreview` -> `saleRepository.findByCustomer`
++ `installmentRepository.findBySaleIdOrderByNumberAsc` -> `doSend` ->
+`notificationChannel.send` + `auditLogService.record`) : aucun de ces appels ne
+consulte `CurrentShopContext`. `AuditLogService.record()` appelle bien
+`CurrentUser.username()`, mais cette methode est explicitement null-safe
+(retourne `null` si `SecurityContextHolder` n'a pas d'`Authentication`, ne leve
+jamais) - `actor` sera simplement `null` pour les relances automatiques, ce qui
+est correct et sans effet de bord. Le cloisonnement multi-tenant reste assure
+par la RLS Postgres pilotee par `TenantContext` (`TenantConnectionConfig`,
+`app.current_org_id`), positionnee par `ReminderSchedulerJob.runForOrganization()`
+independamment de toute authentification HTTP - verifie en lisant
+`TenantConnectionConfig` et en confirmant qu'aucun composant du chemin
+`sendAutomatic` ne depend de `TenantContext` indirectement via
+`CurrentShopContext`.
 
-Ce bug n'est detecte par aucun test execute par mvn test :
-- Les tests unitaires (ReminderServiceTest) mockent entierement
-  CustomerService, donc n'exercent jamais le vrai getEntity().
-- Le seul test qui l'aurait detecte, ReminderSchedulerJobMultiTenantIT
-  (Testcontainers, contexte Spring reel, aucune authentification), est un
-  fichier *IT.java : ce pattern n'est pas dans les includes par defaut de
-  Surefire (*Test.java, Test*.java, *Tests.java, *TestCase.java), donc
-  mvn test ne le compile/execute meme pas comme test.
+J'ai reproduit empiriquement la regression que corrige ce round : en revertant
+localement `sendAutomatic()` vers l'ancien appel a `prepareForCustomer()` (donc
+`customerService.getEntity()`), le nouveau test
+`sendAutomaticNeverConsultsCustomerServiceOrShopContext` echoue bien, avec les
+deux autres tests `sendAutomaticRecords*WithAutoSuffix` - `NullPointerException:
+Cannot invoke "Customer.getId()" because "customer" is null` a
+`ReminderService.buildPreview` (`customerService` etant un mock Mockito
+totalement non-stubbe, retournant `null`). Ce n'est pas un test qui se contente
+de verifier des interactions sur des mocks deja "correctement" cables : il
+casse reellement si la regression est reintroduite. Fichier restaure a
+l'identique du commit `f6c2ad8` apres verification (`git diff` vide sur ce
+fichier).
 
-J'ai confirme empiriquement (hors du repo, script Java jetable compile contre
-target/classes, sans toucher au code source) que CurrentUser.username()
-retourne null et que currentUser() dans CurrentShopContext leve bien
-IllegalStateException en l'absence de tout SecurityContextHolder peuple -
-exactement la situation d'un thread @Scheduled.
+Les chemins manuels (`send()`, `generate()`, `sendAll()`) n'ont pas ete
+touches par ce round (seuls `sendAutomatic()` et `buildPreview()`/
+`prepareForCustomer()` ont change) et continuent d'utiliser
+`customerService.getEntity()` avec verification d'acces - confirme par lecture
+du diff et par les tests existants (`sendRecordsSuccess`, `sendRecordsFailure`,
+`sendAllContinuesOnFailure`, `sendAllRejectsManualChannel`, `generateNeverCallsChannel`),
+tous verts.
 
-Le meme piege est deja documente ailleurs dans la base : DemoDataSeeder
-authentifie explicitement un utilisateur technique avant d'appeler des
-services passant par CurrentShopContext ("les services de creation
-resolvent la boutique cible via CurrentShopContext, qui exige un utilisateur
-authentifie : le seeding s'execute sous l'identite technique de
-l'administrateur"). ReminderSchedulerJob n'applique pas ce meme
-contournement.
+Le Finding #2 (TOCTOU intra-instance, mineur/informatif dans le premier
+verdict) est desormais documente dans `design.md` section "Hors perimetre",
+avec la meme justification et le meme type d'ecart accepte que le cas
+multi-instance deja note - acceptable pour un ecart mineur explicitement
+assume plutot que corrige.
+
+`sendAutomatic()` n'est appele que depuis `ReminderSchedulerJob`, n'est exposee
+par aucun controleur REST : pas de nouvelle surface RBAC a valider.
 
 ## Criteres d'acceptation
 
 | # | Critere | Statut |
 |---|---|---|
-| 1 | Une echeance en retard declenche une relance automatique sous 24h, sans action humaine | Non couvert - sendAutomatic() echoue systematiquement en production (voir Findings #1). Le job "tourne" (log "X tentes, 0 envoyes, ... X echoues") mais n'envoie jamais rien. |
-| 2 | Aucun double envoi (relance du job planifie, ou declenchement manuel en parallele) | Partiel - la logique de cooldown via AuditLogRepository.existsBy... est correcte et testee au niveau unitaire (couvre bien le cas "le job est relance" et "un envoi manuel precedent bloque l'auto"), mais elle est invalidee en pratique tant que le Finding #1 n'est pas corrige (aucun envoi automatique reussi -> pas de garde-fou a verifier en conditions reelles). Voir aussi Finding #2 (race TOCTOU mineure). |
-| 3 | Le declenchement manuel (/send, /send-all) continue de fonctionner sans regression | Couvert - doSend(..., automatic) ne change que le suffixe d'audit et le flag de cooldown n'est jamais consulte sur ces chemins ; send()/sendAll() inchanges fonctionnellement, testes (ReminderServiceTest, suffixe "ne se termine pas par (auto)" verifie explicitement). |
-| 4 | Cloisonnement multi-boutiques respecte par la tache planifiee | Couvert au niveau architecture (RLS Postgres pilotee par TenantContext.set/clear, independante de CurrentShopContext/SecurityContextHolder - voir TenantConnectionConfig), et teste unitairement (processesEachOrganizationWithItsOwnTenantContext, isolation par organisation). L'IT Testcontainers dediee existe et est bien concue, mais n'a pas pu etre executee ici (Docker indisponible) ni par mvn test (pattern *IT.java hors des includes Surefire par defaut). |
+| 1 | Une echeance en retard declenche une relance automatique sous 24h, sans action humaine | Couvert - `sendAutomatic()` s'execute desormais sans dependance a un `Authentication`/`CurrentShopContext` (Finding #1 corrige et verifie empiriquement), le cron quotidien (`app.reminder.auto-cron`, defaut `0 0 8 * * *`) et le flag `auto-enabled` sont testes (`ReminderSchedulerJobTest`). |
+| 2 | Aucun double envoi (relance du job planifie, ou declenchement manuel en parallele) | Couvert pour le cas nominal (cooldown via `AuditLogRepository.existsByEntityTypeAndEntityIdAndActionAndCreatedAtAfter`, teste dans `skipsCustomerUnderCooldown`/`sendsCustomerNotUnderCooldown`), et desormais reellement exerce en pratique puisque le Finding #1 ne bloque plus les envois automatiques. La fenetre TOCTOU intra-instance (Finding #2) reste un ecart non corrige mais documente et juge mineur/etroit. |
+| 3 | Le declenchement manuel (/send, /send-all) continue de fonctionner sans regression | Couvert - aucun changement de comportement sur `send()`/`generate()`/`sendAll()` dans ce round ; tests correspondants verts. |
+| 4 | Cloisonnement multi-boutiques respecte par la tache planifiee | Couvert - RLS Postgres pilotee par `TenantContext.set/clear` (independante de `CurrentShopContext`), verifiee unitairement (`processesEachOrganizationWithItsOwnTenantContext`) ; l'IT Testcontainers dediee (`ReminderSchedulerJobMultiTenantIT`) existe et documente desormais explicitement pourquoi elle ne tourne pas via `mvn test` (pas de plugin Failsafe configure dans `backend/pom.xml`, convention deja en place depuis le bolt #40 pour `RowLevelSecurityIT`/`RowLevelSecurityHibernateIT`, hors perimetre de ce ticket). |
 
-## Findings
+## Verification complementaire de ce round
 
-### 1. [BLOQUANT] sendAutomatic() echoue systematiquement en production : depend transitivement de CurrentShopContext/SecurityContextHolder malgre le contrat contraire
-
-- Fichiers/lignes :
-  - backend/src/main/java/com/creditflow/notification/service/ReminderService.java:67-71 (sendAutomatic) appelle prepareForCustomer (ligne 159) qui appelle customerService.getEntity(customerId).
-  - backend/src/main/java/com/creditflow/customer/service/CustomerService.java:84-89 : getEntity() appelle inconditionnellement currentShopContext.assertAccessible(customer.getShop().getId()).
-  - backend/src/main/java/com/creditflow/common/security/CurrentShopContext.java:136-149 : assertAccessible -> accessibleShopIds() -> currentUser(), qui leve IllegalStateException("Aucun utilisateur authentifie") si CurrentUser.username() (base sur SecurityContextHolder) est null.
-  - backend/src/main/java/com/creditflow/notification/service/ReminderSchedulerJob.java:39-96 : run()/processOrganization() ne peuplent jamais SecurityContextHolder (seul TenantContext.set/clear est gere), contrairement a ce que fait par exemple DemoDataSeeder (authenticateAsAdmin()) pour un besoin similaire.
-- Scenario qui le declenche : le cron s'execute (app.reminder.auto-cron), trouve un client en retard sans reminder recent, appelle reminderService.sendAutomatic(customerId). Dans un thread @Scheduled, aucun Authentication n'est present dans SecurityContextHolder (confirme empiriquement). getEntity() leve alors IllegalStateException, remontee jusqu'au catch (Exception e) de ReminderSchedulerJob.processOrganization (ligne ~88), comptabilisee en "echoue", journalisee en WARN, et silencieusement ignoree. Aucune relance n'est jamais envoyee automatiquement.
-- Pourquoi les tests ne l'ont pas vu : ReminderServiceTest mocke CustomerService en totalite (@Mock private CustomerService customerService;), donc n'exerce jamais le vrai getEntity(). Le seul test qui exerce un contexte Spring reel sans authentification, ReminderSchedulerJobMultiTenantIT, est un fichier *IT.java que Surefire n'inclut pas par defaut (mvn test ne le mentionne meme pas dans son log, confirme par grep sur un run complet). Il n'y a pas de .github/workflows dans le repo, donc rien n'indique que cette IT tourne ailleurs non plus.
-- Correctif suggere : soit authentifier un principal technique autour de ReminderSchedulerJob.run() (meme pattern que DemoDataSeeder.authenticateAsAdmin(), avec nettoyage en finally), soit - plus propre puisque le contrat annonce explicitement "ne consulte pas CurrentShopContext" - faire en sorte que sendAutomatic() n'appelle pas customerService.getEntity() mais recupere le client via un chemin qui ne fait pas de verification d'acces utilisateur (par ex. customerRepository.findById directement, la frontiere multi-tenant etant deja assuree par la RLS pilotee par TenantContext).
-
-### 2. [MINEUR/INFORMATIF] Fenetre de course (TOCTOU) entre sendAutomatic planifie et send/sendAll manuel simultanes sur le meme client
-
-- Fichier/ligne : backend/src/main/java/com/creditflow/notification/service/ReminderSchedulerJob.java:80-92 (existsByEntityTypeAndEntityIdAndActionAndCreatedAtAfter puis, hors de toute transaction partagee, reminderService.sendAutomatic(...)).
-- Scenario : si un utilisateur declenche manuellement /api/reminders/send pour un client au meme instant (meme fenetre de quelques dizaines de ms) ou le job planifie evalue ce meme client, les deux threads peuvent lire "pas de REMINDER_SENT recent" avant que l'un des deux ait committe son audit log, et envoyer chacun une relance - un vrai double envoi, sur une seule instance, sans qu'il soit necessaire d'avoir plusieurs instances backend. Le design.md ne documente que le cas "multi-instance sans verrou distribue" comme ecart accepte ; cette course intra-instance (thread scheduler vs thread HTTP) n'est pas couverte par cette justification et n'est pas testee.
-- Impact : fenetre tres etroite (cron quotidien a 8h, peu de chances qu'un humain declenche /send a la meme seconde), donc plutot a documenter que bloquant en soi - mais ce n'est actuellement ni mentionne ni teste, alors que le critere d'acceptation #2 du ticket parle explicitement de ce cas ("declenchement manuel utilise en parallele").
+- Relu `CurrentShopContext.java`, `TenantConnectionConfig.java`, `CurrentUser.java`,
+  `AuditLogService.java` pour confirmer que rien dans le chemin
+  `sendAutomatic -> buildPreview -> doSend` ne remonte, meme transitivement, a
+  `SecurityContextHolder` de maniere bloquante.
+- Confirme que `backend/pom.xml` ne configure ni `maven-failsafe-plugin` ni de
+  binding personnalise de Surefire : la non-execution des `*IT.java` par
+  `mvn test` est bien une convention pre-existante (bolt #40), pas une
+  regression ni un contournement introduit par ce bolt.
+- `sendAutomatic()` n'est reference que dans `ReminderSchedulerJob` et
+  `ReminderService` - pas de controleur REST, donc pas de nouvelle question de
+  RBAC.
 
 ## Build/tests
 
-- cd backend && mvn test (suite complete) : 431 tests, 0 echec, BUILD SUCCESS - confirme le chiffre rapporte par le codeur. Log complet grepe pour verifier qu'aucune classe *IT.java (ReminderSchedulerJobMultiTenantIT, RowLevelSecurityIT, RowLevelSecurityHibernateIT) n'y apparait : confirme, ces classes ne sont pas executees par mvn test (pattern Surefire par defaut, convention deja existante depuis le bolt #40, pas une regression de ce bolt).
-- cd backend && mvn test -Dtest=ReminderServiceTest,ReminderSchedulerJobTest,LateCustomerServiceTest,ReminderSchedulerJobMultiTenantIT : 21 tests unitaires OK (LateCustomerServiceTest 3, ReminderSchedulerJobTest 9, ReminderServiceTest 9), ReminderSchedulerJobMultiTenantIT = 0 test execute (assumption Docker non disponible dans cet environnement : "Could not find a valid Docker environment") - ignore proprement comme prevu par le design, mais du coup jamais verifie ici.
-- Verification hors-repo (script Java jetable, compile contre backend/target/classes + classpath Maven, aucun fichier source du projet modifie) : confirme que CurrentUser.username() retourne null et que la levee d'IllegalStateException par CurrentShopContext.currentUser() se produit bien en l'absence de tout SecurityContextHolder peuple, exactement la situation d'un thread @Scheduled - preuve empirique du Finding #1.
-- Frontend : aucun fichier frontend touche par ce bolt (confirme par git diff master --stat), pas de build frontend necessaire.
+- `cd backend && mvn test` (suite complete) : **432 tests, 0 echec, BUILD SUCCESS** -
+  confirme le chiffre rapporte par le codeur (431 -> 432, coherent avec l'ajout
+  du seul nouveau test `sendAutomaticNeverConsultsCustomerServiceOrShopContext`).
+- Reproduction empirique du Finding #1 : revert temporaire (non commite) de
+  `sendAutomatic()` vers l'appel `prepareForCustomer(customerId, null)` (ancien
+  code), puis `mvn -Dtest=ReminderServiceTest test` -> 3 echecs (`NullPointerException`
+  a `ReminderService.buildPreview` via `prepareForCustomer`/`sendAutomatic`) sur
+  `sendAutomaticRecordsFailureWithAutoSuffix`, `sendAutomaticNeverConsultsCustomerServiceOrShopContext`,
+  `sendAutomaticRecordsSuccessWithAutoSuffix`. Fichier restaure ensuite via
+  `git checkout -- ReminderService.java` (diff verifie vide apres restauration).
+- Frontend : aucun fichier frontend touche par ce bolt (`git diff master --stat`),
+  pas de build frontend necessaire.
 
-## Recommandation
+## Suivi (non bloquant)
 
-CHANGES_REQUESTED tant que le Finding #1 n'est pas corrige : c'est un bug qui
-annule completement l'effet du ticket en production (le critere d'acceptation
-principal - "relance automatique reelle, sans action humaine" - n'est pas
-rempli), sans qu'aucun test execute par mvn test ne le revele. Le Finding #2
-devrait au minimum etre documente comme ecart accepte (comme le cas
-multi-instance l'est deja) si non corrige, plutot que silencieusement absent
-du design.
+- Finding #2 (TOCTOU intra-instance) reste un ecart accepte et documente,
+  coherent avec le traitement du cas multi-instance. A revisiter avec un verrou
+  consultatif Postgres si le besoin de fiabilite augmente, comme note dans
+  `design.md`.
+- La convention "aucun `*IT.java` n'est execute par un goal Maven" (absence de
+  Failsafe) est une dette pre-existante au module, desormais documentee dans
+  `ReminderSchedulerJobMultiTenantIT`. Elle n'est pas propre a ce ticket et ne
+  bloque pas ce round, mais vaudrait la peine d'un ticket dedie pour eviter
+  que de futures IT restent silencieusement non executees en CI.
