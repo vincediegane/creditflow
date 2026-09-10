@@ -171,3 +171,15 @@ branche n'apporterait rien. Le verdict est APPROVE, sous reserve explicite que l
 decrite ci-dessus (execution reelle de RowLevelSecurityIT/RowLevelSecurityHibernateIT, ou
 validation manuelle equivalente contre un vrai Postgres) soit effectuee avant tout deploiement en
 production avec plusieurs organisations reelles.
+
+## Suivi — #68
+
+Tentative de levee du point residuel non-bloquant ci-dessus : voir
+`docs/bolts/68-valider-rls-postgres-reel/validation-report.md`. Docker fonctionne desormais
+(daemon actif, image `postgres:16-alpine` en cache), mais l'execution reelle des deux IT reste
+bloquee par une cause nouvelle, differente des 4 tentatives precedentes et desormais precisement
+diagnostiquee : incompatibilite de version entre `testcontainers`/`docker-java` figes dans
+`pom.xml` (requete API Docker `1.32`) et le `MinAPIVersion=1.44` impose par Docker Desktop
+4.54.0. Les criteres d'acceptation restent non coches ; un chemin de resolution concret est
+documente dans ce rapport (mise a jour de dependance necessitant un acces reseau indisponible
+dans l'environnement `mvn -o` de ce pipeline).
