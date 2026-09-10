@@ -64,6 +64,9 @@ Un service `backup` tourne en permanence : une sauvegarde au démarrage, puis to
 > Une sauvegarde qui reste sur le disque qui tombe en panne ne protège de rien.
 > Testez une restauration avant la mise en service, puis une fois par trimestre.
 
+Un `pg_dump` en échec fait désormais échouer le script (code de sortie non nul, message
+explicite), au lieu de produire silencieusement un fichier vide.
+
 ### Export / suppression par organisation
 
 Contrairement à `backup.sh`/`restore.sh` (sauvegarde/restauration complète de la base, toutes
