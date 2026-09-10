@@ -33,6 +33,16 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code RowLevelSecurityHibernateIT}), que {@link ReminderSchedulerJob#run()} traite
  * chaque organisation sous son propre tenant et n'envoie jamais une relance a un
  * client d'une autre organisation.
+ *
+ * <p>Comme {@code RowLevelSecurityIT}/{@code RowLevelSecurityHibernateIT} (spec #40), ce
+ * fichier *IT.java n'est pas execute par {@code mvn test} (Surefire ne compile/execute par
+ * defaut que *Test.java/Test*.java/*Tests.java/*TestCase.java, et aucun plugin Failsafe
+ * n'est configure dans ce module pour le lier a {@code mvn verify}) : il exige Docker et se
+ * lance explicitement (ex. IDE ou {@code mvn -Dtest=ReminderSchedulerJobMultiTenantIT test}).
+ * Etendre cette convention a l'ensemble du module est hors perimetre du ticket #67 (review).
+ * Le chemin "sendAutomatic() sans utilisateur authentifie" (review #67, finding bloquant)
+ * est neanmoins couvert par un test qui tourne reellement dans {@code mvn test} :
+ * {@code ReminderServiceTest#sendAutomaticNeverConsultsCustomerServiceOrShopContext}.
  */
 @SpringBootTest
 @Import(ReminderSchedulerJobMultiTenantIT.FakeAutomaticChannelConfig.class)

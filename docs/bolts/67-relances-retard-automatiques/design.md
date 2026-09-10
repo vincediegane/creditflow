@@ -175,3 +175,21 @@ requis par le ticket, le declenchement manuel existant (/api/reminders/send,
 - Historique/ecran dedie de suivi des envois automatiques (au-dela du
   journal d'audit deja consultable via /api/audit-logs) : non demande par
   les criteres d'acceptation.
+- Fenetre de course (TOCTOU) intra-instance entre le job planifie et un
+  declenchement manuel simultane sur le meme client (review #67, finding
+  mineur). Le garde-fou anti-doublon (existsByEntityTypeAndEntityIdAndAction
+  AndCreatedAtAfter, puis ecriture de l'AuditLog par doSend) n'est pas
+  atomique : si un utilisateur declenche /api/reminders/send ou /send-all
+  pour un client au meme instant (meme fenetre de quelques dizaines de ms)
+  ou le job planifie evalue ce client, les deux threads peuvent lire "pas de
+  REMINDER_SENT recent" avant que l'un des deux ait committe son audit log,
+  et envoyer chacun une relance. C'est le meme type de risque que la
+  concurrence multi-instance deja documentee ci-dessus (lecture-puis-
+  ecriture non atomique du cooldown), mais ici entre deux threads de la
+  meme instance (scheduler vs HTTP) plutot qu'entre deux instances.
+  **Non corrige pour ce ticket** : fenetre tres etroite en pratique (cron
+  quotidien a heure fixe, peu de chances qu'un humain declenche /send a la
+  meme seconde), et une correction robuste (verrou/contrainte transactionnelle
+  sur le cooldown) rejoindrait la meme solution que le cas multi-instance
+  (ex. verrou consultatif Postgres) : a traiter ensemble si le besoin de
+  fiabilite augmente, plutot que d'ajouter un correctif partiel ici.
