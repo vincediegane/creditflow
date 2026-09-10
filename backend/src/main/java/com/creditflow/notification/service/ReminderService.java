@@ -5,6 +5,7 @@ import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.customer.domain.Customer;
+import com.creditflow.customer.repository.CustomerRepository;
 import com.creditflow.customer.service.CustomerService;
 import com.creditflow.notification.dto.BulkReminderResponse;
 import com.creditflow.notification.dto.LateCustomerResponse;
@@ -34,6 +35,7 @@ public class ReminderService {
     private final CreditSaleRepository saleRepository;
     private final InstallmentRepository installmentRepository;
     private final CustomerService customerService;
+    private final CustomerRepository customerRepository;
     private final ReminderMessageBuilder messageBuilder;
     private final NotificationChannel notificationChannel;
     private final LateCustomerService lateCustomerService;
@@ -66,7 +68,9 @@ public class ReminderService {
     @Transactional
     public ReminderResponse sendAutomatic(Long customerId) {
         requireAutomaticChannel();
-        ReminderPreview preview = prepareForCustomer(customerId, null);
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Client", customerId));
+        ReminderPreview preview = buildPreview(customer, null);
         return doSend(preview.customer(), preview.amount(), preview.message(), true);
     }
 
@@ -157,7 +161,18 @@ public class ReminderService {
     }
 
     private ReminderPreview prepareForCustomer(Long customerId, String template) {
-        Customer customer = customerService.getEntity(customerId);
+        return buildPreview(customerService.getEntity(customerId), template);
+    }
+
+    /**
+     * Ne consulte ni CustomerService ni CurrentShopContext : seul chemin
+     * utilisable depuis sendAutomatic() (thread planifie sans utilisateur
+     * authentifie). Le cloisonnement multi-tenant reste assure par la RLS
+     * Postgres pilotee par TenantContext (voir ReminderSchedulerJob), pas par
+     * cette methode.
+     */
+    private ReminderPreview buildPreview(Customer customer, String template) {
+        Long customerId = customer.getId();
         LocalDate today = LocalDate.now();
 
         List<CreditSale> sales = saleRepository.findByCustomer(customerId);
