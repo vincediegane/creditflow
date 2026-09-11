@@ -84,6 +84,9 @@ docker compose exec restore-test sh /usr/local/bin/restore-test.sh
 > une fois par trimestre. Le test automatique hebdomadaire de `restore-test.sh` (instance jetable)
 > complète cette vérification manuelle, il ne la remplace pas.
 
+Un `pg_dump` en échec fait désormais échouer le script (code de sortie non nul, message
+explicite), au lieu de produire silencieusement un fichier vide.
+
 ### Export / suppression par organisation
 
 Contrairement à `backup.sh`/`restore.sh` (sauvegarde/restauration complète de la base, toutes

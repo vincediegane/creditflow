@@ -30,19 +30,23 @@ log "Demarrage — intervalle ${INTERVAL_HOURS}h, retention ${RETENTION_DAYS} jo
 while true; do
     STAMP=$(date +%Y%m%d-%H%M%S)
     TARGET="$DIR/creditflow-$STAMP.sql.gz"
+    RAW="$DIR/creditflow-$STAMP.sql.raw"
 
     # --clean/--if-exists : le fichier peut etre rejoue sur une base existante.
-    if pg_dump --clean --if-exists --no-owner --no-privileges 2>/tmp/pg_dump.err \
-        | gzip -9 > "$TARGET.part"; then
-        mv "$TARGET.part" "$TARGET"
-        if backup_verify "$TARGET"; then
-            log "OK  $(basename "$TARGET") ($(du -h "$TARGET" | cut -f1))"
+    if pg_dump --clean --if-exists --no-owner --no-privileges > "$RAW" 2>/tmp/pg_dump.err; then
+        if gzip -9 "$RAW" && mv "$RAW.gz" "$TARGET"; then
+            if backup_verify "$TARGET"; then
+                log "OK  $(basename "$TARGET") ($(du -h "$TARGET" | cut -f1))"
+            else
+                log "CRITIQUE : sauvegarde corrompue ou anormalement petite, mise en quarantaine ($TARGET)"
+            fi
         else
-            log "CRITIQUE : sauvegarde corrompue ou anormalement petite, mise en quarantaine ($TARGET)"
+            rm -f "$RAW" "$RAW.gz"
+            log "CRITIQUE — echec de la compression/deplacement de la sauvegarde"
         fi
     else
-        rm -f "$TARGET.part"
-        log "ECHEC de la sauvegarde : $(tr '\n' ' ' < /tmp/pg_dump.err)"
+        rm -f "$RAW"
+        log "CRITIQUE — echec de la sauvegarde : $(tr '\n' ' ' < /tmp/pg_dump.err)"
     fi
 
     DELETED=$(find "$DIR" -name 'creditflow-*.sql.gz' -not -path "*/quarantine/*" -mtime "+$RETENTION_DAYS" -print -delete | wc -l)
