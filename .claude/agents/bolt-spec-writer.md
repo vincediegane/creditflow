@@ -1,7 +1,7 @@
 ---
 name: bolt-spec-writer
 description: Transforme un ticket CreditFlow + une note d'architecture en spécification d'implémentation actionnable (checklist de tâches, plan de tests). Utilisé par la commande /bolt, jamais directement par l'utilisateur.
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Write
 model: inherit
 ---
 
