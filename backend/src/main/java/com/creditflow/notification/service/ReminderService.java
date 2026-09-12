@@ -5,6 +5,7 @@ import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.customer.domain.Customer;
+import com.creditflow.customer.repository.CustomerRepository;
 import com.creditflow.customer.service.CustomerService;
 import com.creditflow.notification.dto.BulkReminderResponse;
 import com.creditflow.notification.dto.LateCustomerResponse;
@@ -34,6 +35,7 @@ public class ReminderService {
     private final CreditSaleRepository saleRepository;
     private final InstallmentRepository installmentRepository;
     private final CustomerService customerService;
+    private final CustomerRepository customerRepository;
     private final ReminderMessageBuilder messageBuilder;
     private final NotificationChannel notificationChannel;
     private final LateCustomerService lateCustomerService;
@@ -60,7 +62,16 @@ public class ReminderService {
     public ReminderResponse send(ReminderRequest request) {
         requireAutomaticChannel();
         ReminderPreview preview = prepare(request.saleId(), request.customerId(), request.template());
-        return doSend(preview.customer(), preview.amount(), preview.message());
+        return doSend(preview.customer(), preview.amount(), preview.message(), false);
+    }
+
+    @Transactional
+    public ReminderResponse sendAutomatic(Long customerId) {
+        requireAutomaticChannel();
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Client", customerId));
+        ReminderPreview preview = buildPreview(customer, null);
+        return doSend(preview.customer(), preview.amount(), preview.message(), true);
     }
 
     @Transactional
@@ -72,7 +83,7 @@ public class ReminderService {
                 currentShopContext.accessibleShopIds())) {
             try {
                 ReminderPreview preview = prepareForCustomer(lateCustomer.customerId(), template);
-                results.add(doSend(preview.customer(), preview.amount(), preview.message()));
+                results.add(doSend(preview.customer(), preview.amount(), preview.message(), false));
             } catch (Exception e) {
                 log.warn("Echec de preparation/envoi de la relance pour le client {} : {}",
                         lateCustomer.customerId(), e.getMessage());
@@ -107,10 +118,11 @@ public class ReminderService {
         throw new BusinessRuleException("Indiquez un contrat ou un client pour generer la relance");
     }
 
-    private ReminderResponse doSend(Customer customer, BigDecimal amount, String message) {
+    private ReminderResponse doSend(Customer customer, BigDecimal amount, String message, boolean automatic) {
         boolean sent = notificationChannel.send(customer.getPhone(), message);
         auditLogService.record("CUSTOMER", customer.getId(), customer.getFullName(),
-                sent ? "REMINDER_SENT" : "REMINDER_FAILED", "Canal " + notificationChannel.name());
+                sent ? "REMINDER_SENT" : "REMINDER_FAILED",
+                "Canal " + notificationChannel.name() + (automatic ? " (auto)" : ""));
         return new ReminderResponse(
                 customer.getId(),
                 customer.getFullName(),
@@ -149,7 +161,18 @@ public class ReminderService {
     }
 
     private ReminderPreview prepareForCustomer(Long customerId, String template) {
-        Customer customer = customerService.getEntity(customerId);
+        return buildPreview(customerService.getEntity(customerId), template);
+    }
+
+    /**
+     * Ne consulte ni CustomerService ni CurrentShopContext : seul chemin
+     * utilisable depuis sendAutomatic() (thread planifie sans utilisateur
+     * authentifie). Le cloisonnement multi-tenant reste assure par la RLS
+     * Postgres pilotee par TenantContext (voir ReminderSchedulerJob), pas par
+     * cette methode.
+     */
+    private ReminderPreview buildPreview(Customer customer, String template) {
+        Long customerId = customer.getId();
         LocalDate today = LocalDate.now();
 
         List<CreditSale> sales = saleRepository.findByCustomer(customerId);

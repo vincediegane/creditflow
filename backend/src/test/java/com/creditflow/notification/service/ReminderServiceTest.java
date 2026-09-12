@@ -4,6 +4,7 @@ import com.creditflow.audit.service.AuditLogService;
 import com.creditflow.common.exception.BusinessRuleException;
 import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.customer.domain.Customer;
+import com.creditflow.customer.repository.CustomerRepository;
 import com.creditflow.customer.service.CustomerService;
 import com.creditflow.notification.dto.BulkReminderResponse;
 import com.creditflow.notification.dto.LateCustomerResponse;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -27,6 +29,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -52,6 +55,9 @@ class ReminderServiceTest {
     private CustomerService customerService;
 
     @Mock
+    private CustomerRepository customerRepository;
+
+    @Mock
     private ReminderMessageBuilder messageBuilder;
 
     @Mock
@@ -71,7 +77,8 @@ class ReminderServiceTest {
     @BeforeEach
     void setUp() {
         reminderService = new ReminderService(saleRepository, installmentRepository, customerService,
-                messageBuilder, notificationChannel, lateCustomerService, auditLogService, currentShopContext);
+                customerRepository, messageBuilder, notificationChannel, lateCustomerService, auditLogService,
+                currentShopContext);
 
         when(messageBuilder.build(any(), any())).thenReturn("Bonjour, votre echeance est en retard.");
         when(installmentRepository.findBySaleIdOrderByNumberAsc(anyLong())).thenReturn(Collections.emptyList());
@@ -116,8 +123,10 @@ class ReminderServiceTest {
         ReminderResponse response = reminderService.send(new ReminderRequest(null, 1L, null));
 
         assertThat(response.sent()).isTrue();
+        ArgumentCaptor<String> detailCaptor = ArgumentCaptor.forClass(String.class);
         verify(auditLogService).record(eq("CUSTOMER"), eq(1L), eq(customer.getFullName()),
-                eq("REMINDER_SENT"), any());
+                eq("REMINDER_SENT"), detailCaptor.capture());
+        assertThat(detailCaptor.getValue()).doesNotEndWith("(auto)");
     }
 
     @Test
@@ -170,6 +179,70 @@ class ReminderServiceTest {
         assertThat(response.total()).isEqualTo(2);
         assertThat(response.sent()).isEqualTo(1);
         assertThat(response.failed()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("sendAutomatic() refuse le canal MANUAL_COPY")
+    void sendAutomaticRejectsManualChannel() {
+        when(notificationChannel.name()).thenReturn(ManualCopyChannel.NAME);
+
+        assertThatThrownBy(() -> reminderService.sendAutomatic(1L))
+                .isInstanceOf(BusinessRuleException.class);
+
+        verify(notificationChannel, never()).send(any(), any());
+    }
+
+    @Test
+    @DisplayName("sendAutomatic() historise un succes avec le suffixe (auto)")
+    void sendAutomaticRecordsSuccessWithAutoSuffix() {
+        Customer customer = customer(1L, "770000001");
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+        when(saleRepository.findByCustomer(1L)).thenReturn(List.of(sale(customer)));
+        when(notificationChannel.name()).thenReturn("WHATSAPP_CLOUD_API");
+        when(notificationChannel.send(eq("770000001"), any())).thenReturn(true);
+
+        ReminderResponse response = reminderService.sendAutomatic(1L);
+
+        assertThat(response.sent()).isTrue();
+        ArgumentCaptor<String> detailCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditLogService).record(eq("CUSTOMER"), eq(1L), eq(customer.getFullName()),
+                eq("REMINDER_SENT"), detailCaptor.capture());
+        assertThat(detailCaptor.getValue()).endsWith("(auto)");
+    }
+
+    @Test
+    @DisplayName("sendAutomatic() historise un echec avec le suffixe (auto)")
+    void sendAutomaticRecordsFailureWithAutoSuffix() {
+        Customer customer = customer(1L, "770000001");
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+        when(saleRepository.findByCustomer(1L)).thenReturn(List.of(sale(customer)));
+        when(notificationChannel.name()).thenReturn("WHATSAPP_CLOUD_API");
+        when(notificationChannel.send(eq("770000001"), any())).thenReturn(false);
+
+        ReminderResponse response = reminderService.sendAutomatic(1L);
+
+        assertThat(response.sent()).isFalse();
+        ArgumentCaptor<String> detailCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditLogService).record(eq("CUSTOMER"), eq(1L), eq(customer.getFullName()),
+                eq("REMINDER_FAILED"), detailCaptor.capture());
+        assertThat(detailCaptor.getValue()).endsWith("(auto)");
+    }
+
+    @Test
+    @DisplayName("sendAutomatic() ne consulte jamais CustomerService ni CurrentShopContext "
+            + "(chemin planifie sans utilisateur authentifie, cf. review #67)")
+    void sendAutomaticNeverConsultsCustomerServiceOrShopContext() {
+        Customer customer = customer(1L, "770000001");
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+        when(saleRepository.findByCustomer(1L)).thenReturn(List.of(sale(customer)));
+        when(notificationChannel.name()).thenReturn("WHATSAPP_CLOUD_API");
+        when(notificationChannel.send(eq("770000001"), any())).thenReturn(true);
+
+        ReminderResponse response = reminderService.sendAutomatic(1L);
+
+        assertThat(response.sent()).isTrue();
+        verifyNoInteractions(customerService);
+        verifyNoInteractions(currentShopContext);
     }
 
     private Customer customer(Long id, String phone) {

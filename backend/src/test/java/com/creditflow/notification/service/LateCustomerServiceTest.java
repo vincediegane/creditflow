@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -84,6 +85,20 @@ class LateCustomerServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).customerId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("lateCustomers avec un organizationId explicite ignore le contexte de l'utilisateur courant")
+    void lateCustomersWithExplicitOrganizationIdBypassesCurrentShopContext() {
+        List<Long> shopIds = List.of(1L);
+        when(installmentRepository.findLateForShops(any(), eq(shopIds), eq(999L)))
+                .thenReturn(List.of(lateInstallment()));
+
+        var result = lateCustomerService.lateCustomers(shopIds, 999L);
+
+        assertThat(result).hasSize(1);
+        verify(installmentRepository).findLateForShops(any(), eq(shopIds), eq(999L));
+        verifyNoInteractions(currentShopContext);
     }
 
     private Installment lateInstallment() {

@@ -104,6 +104,9 @@ public class AppProperties {
         private String defaultTemplate = "";
         private int windowStartDay = 1;
         private int windowEndDay = 10;
+        private boolean autoEnabled = true;
+        private String autoCron = "0 0 8 * * *";
+        private int autoCooldownDays = 3;
     }
 
     @Getter
