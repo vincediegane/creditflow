@@ -18,6 +18,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx/locations.conf /etc/nginx/snippets/locations.conf
 COPY nginx/http.conf /etc/nginx/templates/http.conf
 COPY nginx/https.conf /etc/nginx/templates/https.conf
+COPY nginx/ratelimit.conf /etc/nginx/conf.d/ratelimit.conf
 COPY docker-entrypoint.sh /docker-entrypoint-creditflow.sh
 
 RUN chmod +x /docker-entrypoint-creditflow.sh && mkdir -p /etc/nginx/certs

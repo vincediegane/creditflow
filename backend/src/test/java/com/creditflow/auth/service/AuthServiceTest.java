@@ -9,6 +9,7 @@ import com.creditflow.auth.dto.UserResponse;
 import com.creditflow.auth.repository.UserRepository;
 import com.creditflow.auth.security.JwtService;
 import com.creditflow.common.exception.BusinessRuleException;
+import com.creditflow.common.exception.ResourceNotFoundException;
 import com.creditflow.common.security.CurrentShopContext;
 import com.creditflow.config.AppProperties;
 import com.creditflow.organization.domain.Organization;
@@ -27,11 +28,14 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -190,5 +194,68 @@ class AuthServiceTest {
         AuthResponse response = service.login(new LoginRequest("admin", "MotDePasseInitial1"));
 
         assertThat(response.accessibleShops()).containsExactly(new ShopSummary(1L, "Boutique principale"));
+    }
+
+    @Test
+    @DisplayName("verrouille le compte apres le nombre maximal d'echecs consecutifs")
+    void locksAccountAfterMaxConsecutiveFailures() {
+        when(properties.getSecurity()).thenReturn(new AppProperties.Security());
+        when(authenticationManager.authenticate(any()))
+                .thenThrow(new BadCredentialsException("Identifiants invalides"));
+
+        for (int i = 0; i < 5; i++) {
+            assertThatThrownBy(() -> authService.login(new LoginRequest("admin", "mauvais")))
+                    .isInstanceOf(BadCredentialsException.class);
+        }
+
+        assertThat(user.getFailedLoginAttempts()).isZero();
+        assertThat(user.getLockedUntil()).isAfter(LocalDateTime.now());
+    }
+
+    @Test
+    @DisplayName("rejette immediatement une connexion sur un compte verrouille, sans reappeler authenticate()")
+    void rejectsLoginImmediatelyWhenAccountIsLocked() {
+        user.setLockedUntil(LocalDateTime.now().plusMinutes(10));
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("admin", "MotDePasseInitial1")))
+                .isInstanceOf(LockedException.class);
+
+        verify(authenticationManager, never()).authenticate(any());
+    }
+
+    @Test
+    @DisplayName("remet a zero le compteur d'echecs apres une connexion reussie")
+    void resetsFailedAttemptsOnSuccessfulLogin() {
+        user.setFailedLoginAttempts(2);
+        when(jwtService.generateToken("admin", "ADMIN")).thenReturn("token");
+
+        authService.login(new LoginRequest("admin", "MotDePasseInitial1"));
+
+        assertThat(user.getFailedLoginAttempts()).isZero();
+        assertThat(user.getLockedUntil()).isNull();
+    }
+
+    @Test
+    @DisplayName("autorise a nouveau une tentative une fois le verrou expire")
+    void unlocksAutomaticallyAfterLockoutExpires() {
+        user.setLockedUntil(LocalDateTime.now().minusMinutes(1));
+        when(jwtService.generateToken("admin", "ADMIN")).thenReturn("token");
+
+        authService.login(new LoginRequest("admin", "MotDePasseInitial1"));
+
+        verify(authenticationManager).authenticate(any());
+        assertThat(user.getLockedUntil()).isNull();
+    }
+
+    @Test
+    @DisplayName("rejette un identifiant inexistant sans reveler l'absence du compte")
+    void throwsBadCredentialsForUnknownUsername() {
+        when(userRepository.findByUsernameIgnoreCase("inconnu")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("inconnu", "peu importe")))
+                .isInstanceOf(BadCredentialsException.class)
+                .isNotInstanceOf(ResourceNotFoundException.class);
+
+        verify(authenticationManager, never()).authenticate(any());
     }
 }

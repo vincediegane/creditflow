@@ -26,4 +26,17 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().message()).isEqualTo("Fichier trop volumineux, taille maximale autorisee : 10 Mo");
         assertThat(response.getBody().path()).isEqualTo("/api/customers/1/photo");
     }
+
+    @Test
+    @DisplayName("renvoie la meme reponse pour un compte verrouille que pour tout autre echec d'authentification")
+    void handlesLockedExceptionLikeAnyOtherAuthenticationFailure() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/auth/login");
+
+        ResponseEntity<ApiError> response = handler.handleAuthentication(
+                new org.springframework.security.authentication.LockedException("Compte verrouille"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().message()).isEqualTo("Identifiants invalides");
+    }
 }
