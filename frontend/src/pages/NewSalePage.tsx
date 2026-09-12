@@ -234,7 +234,14 @@ export default function NewSalePage() {
                       options={productsQuery.data ?? []}
                       getOptionLabel={(option) =>
                         `${option.name} — ${formatMoney(option.creditPrice)} (stock ${option.stock})`
+                          + (option.sellable ? '' : ' — rupture de stock')
                       }
+                      renderOption={(props, option) => (
+                        <Box component="li" {...props} sx={{ opacity: option.sellable ? 1 : 0.5 }}>
+                          {`${option.name} — ${formatMoney(option.creditPrice)} (stock ${option.stock})`
+                            + (option.sellable ? '' : ' — rupture de stock')}
+                        </Box>
+                      )}
                       onChange={(_, value) => {
                         setValue('productId', value?.id ?? '');
                         if (value) {

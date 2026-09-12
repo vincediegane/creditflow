@@ -233,9 +233,9 @@ class CreditSaleServiceTest {
     void createRejectsWhenCustomerBelongsToAnotherShop() {
         Shop otherShop = Shop.builder().id(2L).name("Autre boutique").active(true).build();
         Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(otherShop).build();
-        Product product = Product.builder().id(1L).name("iPhone 13").shop(shop).build();
+        Product product = Product.builder().id(1L).name("iPhone 13").stock(5).shop(shop).build();
         when(customerService.getEntity(1L)).thenReturn(customer);
-        when(productService.getEntity(1L)).thenReturn(product);
+        when(productService.getEntityForUpdate(1L)).thenReturn(product);
 
         CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
                 null, null, 3, LocalDate.now(), null, null, null, null, null);
@@ -250,9 +250,9 @@ class CreditSaleServiceTest {
     void createRejectsWhenProductBelongsToAnotherShop() {
         Shop otherShop = Shop.builder().id(2L).name("Autre boutique").active(true).build();
         Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(shop).build();
-        Product product = Product.builder().id(1L).name("iPhone 13").shop(otherShop).build();
+        Product product = Product.builder().id(1L).name("iPhone 13").stock(5).shop(otherShop).build();
         when(customerService.getEntity(1L)).thenReturn(customer);
-        when(productService.getEntity(1L)).thenReturn(product);
+        when(productService.getEntityForUpdate(1L)).thenReturn(product);
 
         CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
                 null, null, 3, LocalDate.now(), null, null, null, null, null);
@@ -275,11 +275,60 @@ class CreditSaleServiceTest {
         assertThat(capturedSale().getShop().getId()).isEqualTo(1L);
     }
 
-    private void stubCreationDependencies() {
-        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(shop).build();
+    @Test
+    @DisplayName("refuse la creation quand le stock du produit est a zero")
+    void createRejectsWhenStockIsZero() {
         Product product = Product.builder().id(1L).name("iPhone 13").stock(0).shop(shop).build();
+        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(shop).build();
         when(customerService.getEntity(1L)).thenReturn(customer);
-        when(productService.getEntity(1L)).thenReturn(product);
+        when(productService.getEntityForUpdate(1L)).thenReturn(product);
+
+        CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
+                null, null, 3, LocalDate.now(), null, null, null, null, null);
+
+        assertThatThrownBy(() -> creditSaleService.create(request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Stock epuise");
+        verify(productService, never()).decreaseStock(any(), anyInt());
+        verify(saleRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("refuse la creation quand le stock du produit est null")
+    void createRejectsWhenStockIsNull() {
+        Product product = Product.builder().id(1L).name("iPhone 13").stock(null).shop(shop).build();
+        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(shop).build();
+        when(customerService.getEntity(1L)).thenReturn(customer);
+        when(productService.getEntityForUpdate(1L)).thenReturn(product);
+
+        CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
+                null, null, 3, LocalDate.now(), null, null, null, null, null);
+
+        assertThatThrownBy(() -> creditSaleService.create(request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Stock epuise");
+        verify(productService, never()).decreaseStock(any(), anyInt());
+        verify(saleRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("decremente le stock quand le stock du produit est positif")
+    void createDecreasesStockWhenStockIsPositive() {
+        Product product = stubCreationDependencies();
+
+        CreateSaleRequest request = new CreateSaleRequest(1L, 1L, new BigDecimal("150000"), BigDecimal.ZERO,
+                null, null, 3, LocalDate.now(), null, null, null, null, null);
+
+        creditSaleService.create(request);
+
+        verify(productService).decreaseStock(product, 1);
+    }
+
+    private Product stubCreationDependencies() {
+        Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(shop).build();
+        Product product = Product.builder().id(1L).name("iPhone 13").stock(5).shop(shop).build();
+        when(customerService.getEntity(1L)).thenReturn(customer);
+        when(productService.getEntityForUpdate(1L)).thenReturn(product);
         when(scheduleGenerator.interestAmount(any(), any(), any())).thenReturn(BigDecimal.ZERO);
         when(scheduleGenerator.generate(any(), anyInt(), any())).thenReturn(
                 new InstallmentScheduleGenerator.Schedule(
@@ -290,6 +339,7 @@ class CreditSaleServiceTest {
             return s;
         });
         when(saleRepository.save(any(CreditSale.class))).thenAnswer(i -> i.getArgument(0));
+        return product;
     }
 
     private CreditSale capturedSale() {
@@ -309,7 +359,7 @@ class CreditSaleServiceTest {
 
         Product product = Product.builder().id(1L).name("iPhone 13").stock(3).status(ProductStatus.ACTIVE)
                 .shop(shop).build();
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(product));
         when(productRepository.save(any(Product.class))).thenAnswer(i -> i.getArgument(0));
 
         Customer customer = Customer.builder().id(1L).firstName("Amadou").lastName("Diallo").shop(shop).build();
