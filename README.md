@@ -60,9 +60,29 @@ Un service `backup` tourne en permanence : une sauvegarde au démarrage, puis to
 ./scripts/restore.sh backups/creditflow-<date>.sql.gz # restauration
 ```
 
+Chaque sauvegarde est vérifiée automatiquement juste après son écriture : taille minimale
+(`BACKUP_MIN_SIZE_BYTES`, 1024 octets par défaut) et intégrité de l'archive (`gunzip -t`). Une
+sauvegarde corrompue ou anormalement petite n'est **jamais** conservée silencieusement comme
+« OK » : elle est déplacée dans `backups/quarantine/` et un log `CRITIQUE` est émis (visible dans
+`docker compose logs backup`). Les fichiers en quarantaine sont exclus de la purge par rétention,
+pour ne pas effacer la preuve d'un échec avant investigation.
+
+Un second service, `restore-test`, restaure automatiquement la dernière sauvegarde valide dans une
+instance PostgreSQL jetable et isolée (aucune écoute réseau, aucune écriture dans `./backups`,
+aucune dépendance au service `db`), toutes les semaines par défaut
+(`RESTORE_TEST_INTERVAL_HOURS`, 168 h). Il vérifie que la restauration réussit et que les tables
+clés (`organizations`, `users`, `credit_sales`, `installments`, `payments`,
+`flyway_schema_history`) sont bien présentes. Déclenchement manuel :
+
+```bash
+docker compose exec restore-test sh /usr/local/bin/restore-test.sh
+```
+
 > **Le dossier `./backups` doit être recopié hors de la machine** (disque externe, cloud).
 > Une sauvegarde qui reste sur le disque qui tombe en panne ne protège de rien.
-> Testez une restauration avant la mise en service, puis une fois par trimestre.
+> Testez une restauration avec `restore.sh` en conditions réelles avant la mise en service, puis
+> une fois par trimestre. Le test automatique hebdomadaire de `restore-test.sh` (instance jetable)
+> complète cette vérification manuelle, il ne la remplace pas.
 
 Un `pg_dump` en échec fait désormais échouer le script (code de sortie non nul, message
 explicite), au lieu de produire silencieusement un fichier vide.

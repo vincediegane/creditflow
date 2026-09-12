@@ -13,6 +13,8 @@
 # =====================================================================
 set -eu
 
+. "$(dirname "$0")/backup-verify.sh"
+
 DIR="${BACKUP_DIR:-/backups}"
 INTERVAL_HOURS="${BACKUP_INTERVAL_HOURS:-24}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
@@ -33,7 +35,11 @@ while true; do
     # --clean/--if-exists : le fichier peut etre rejoue sur une base existante.
     if pg_dump --clean --if-exists --no-owner --no-privileges > "$RAW" 2>/tmp/pg_dump.err; then
         if gzip -9 "$RAW" && mv "$RAW.gz" "$TARGET"; then
-            log "OK  $(basename "$TARGET") ($(du -h "$TARGET" | cut -f1))"
+            if backup_verify "$TARGET"; then
+                log "OK  $(basename "$TARGET") ($(du -h "$TARGET" | cut -f1))"
+            else
+                log "CRITIQUE : sauvegarde corrompue ou anormalement petite, mise en quarantaine ($TARGET)"
+            fi
         else
             rm -f "$RAW" "$RAW.gz"
             log "CRITIQUE — echec de la compression/deplacement de la sauvegarde"
@@ -43,7 +49,7 @@ while true; do
         log "CRITIQUE — echec de la sauvegarde : $(tr '\n' ' ' < /tmp/pg_dump.err)"
     fi
 
-    DELETED=$(find "$DIR" -name 'creditflow-*.sql.gz' -mtime "+$RETENTION_DAYS" -print -delete | wc -l)
+    DELETED=$(find "$DIR" -name 'creditflow-*.sql.gz' -not -path "*/quarantine/*" -mtime "+$RETENTION_DAYS" -print -delete | wc -l)
     if [ "$DELETED" -gt 0 ]; then
         log "$DELETED sauvegarde(s) expiree(s) supprimee(s)"
     fi

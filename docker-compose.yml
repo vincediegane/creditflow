@@ -101,11 +101,30 @@ services:
       PGPASSWORD: ${DB_MIGRATION_PASSWORD:-creditflow}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_MIN_SIZE_BYTES: ${BACKUP_MIN_SIZE_BYTES:-1024}
       TZ: ${TZ:-Africa/Dakar}
     volumes:
       - ./backups:/backups
       - ./scripts/backup-loop.sh:/usr/local/bin/backup-loop.sh:ro
+      - ./scripts/backup-verify.sh:/usr/local/bin/backup-verify.sh:ro
     entrypoint: ['/bin/sh', '/usr/local/bin/backup-loop.sh']
+
+  # Restauration de test hebdomadaire dans une instance PostgreSQL ephemere
+  # isolee : verifie qu'une sauvegarde reelle se restaure et contient les
+  # tables attendues, sans jamais ecrire dans ./backups ni toucher a `db`.
+  restore-test:
+    image: postgres:16-alpine
+    container_name: creditflow-restore-test
+    restart: unless-stopped
+    user: postgres
+    environment:
+      RESTORE_TEST_INTERVAL_HOURS: ${RESTORE_TEST_INTERVAL_HOURS:-168}
+      TZ: ${TZ:-Africa/Dakar}
+    volumes:
+      - ./backups:/backups:ro
+      - ./scripts/restore-test-loop.sh:/usr/local/bin/restore-test-loop.sh:ro
+      - ./scripts/restore-test.sh:/usr/local/bin/restore-test.sh:ro
+    entrypoint: ['/bin/sh', '/usr/local/bin/restore-test-loop.sh']
 
 volumes:
   creditflow-db-data:
