@@ -171,3 +171,17 @@ branche n'apporterait rien. Le verdict est APPROVE, sous reserve explicite que l
 decrite ci-dessus (execution reelle de RowLevelSecurityIT/RowLevelSecurityHibernateIT, ou
 validation manuelle equivalente contre un vrai Postgres) soit effectuee avant tout deploiement en
 production avec plusieurs organisations reelles.
+
+## Suivi — #68
+
+Point residuel non-bloquant ci-dessus desormais leve : voir
+`docs/bolts/68-valider-rls-postgres-reel/validation-report.md`. Docker fonctionne (daemon actif,
+image `postgres:16-alpine` en cache). Un premier passage s'est heurte a une incompatibilite de
+version entre `testcontainers`/`docker-java` (geres par `spring-boot-starter-parent:3.5.6`, requete
+API Docker `1.32` figee) et le `MinAPIVersion=1.44` impose par Docker Desktop 4.54.0 — un blocage
+d'outillage, pas un defaut RLS. Corrige par un override `testcontainers.version=1.21.4` dans
+`backend/pom.xml`. Apres ce correctif, `RowLevelSecurityIT` (4/4) et `RowLevelSecurityHibernateIT`
+(1/1) passent integralement, sans aucun defaut d'isolation reel revele, et la suite complete
+(`mvn test`, 418 tests) ne montre aucune regression. **Les 3 criteres d'acceptation d'origine
+(AC1, AC2, non-regression mono-tenant) sont desormais Valides** — voir le tableau de verdict du
+rapport de validation pour le detail. L'action de suivi requise ci-dessus est donc effectuee.

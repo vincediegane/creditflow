@@ -27,6 +27,7 @@
         <poi.version>5.4.0</poi.version>
         <openpdf.version>1.4.2</openpdf.version>
         <awssdk.version>2.28.29</awssdk.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencyManagement>
